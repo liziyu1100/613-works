@@ -16,7 +16,6 @@ public class TupleTest extends SimpleDbTestBase {
      */
     @Test public void modifyFields() {
         TupleDesc td = Utility.getTupleDesc(2);
-
         Tuple tup = new Tuple(td);
         tup.setField(0, new IntField(-1));
         tup.setField(1, new IntField(0));
@@ -37,7 +36,9 @@ public class TupleTest extends SimpleDbTestBase {
     @Test public void getTupleDesc() {
         TupleDesc td = Utility.getTupleDesc(5);
         Tuple tup = new Tuple(td);
-        assertEquals(td, tup.getTupleDesc());
+        assertEquals(td,
+                tup.getTupleDesc()
+        );
     }
 
     /**

@@ -60,8 +60,11 @@ public class TupleDesc implements Serializable {
      *            array specifying the names of the fields. Note that names may
      *            be null.
      */
+    private String[] names;
     public TupleDesc(Type[] typeAr, String[] fieldAr) {
         // some code goes here
+        this.types = typeAr;
+        this.names = fieldAr;
     }
 
     /**
@@ -72,8 +75,11 @@ public class TupleDesc implements Serializable {
      *            array specifying the number of and types of fields in this
      *            TupleDesc. It must contain at least one entry.
      */
+    private Type[] types;
+
     public TupleDesc(Type[] typeAr) {
         // some code goes here
+        this.types = typeAr;
     }
 
     /**
@@ -81,7 +87,7 @@ public class TupleDesc implements Serializable {
      */
     public int numFields() {
         // some code goes here
-        return 0;
+        return this.types.length;
     }
 
     /**
@@ -95,7 +101,12 @@ public class TupleDesc implements Serializable {
      */
     public String getFieldName(int i) throws NoSuchElementException {
         // some code goes here
-        return null;
+        if(i >= this.names.length){
+            throw new NoSuchElementException("Name中没有这个元素");
+        }
+        else{
+            return this.names[i];
+        }
     }
 
     /**
@@ -110,7 +121,12 @@ public class TupleDesc implements Serializable {
      */
     public Type getFieldType(int i) throws NoSuchElementException {
         // some code goes here
-        return null;
+        if(i >= types.length){
+            throw new NoSuchElementException("Type中没有这个元素");
+        }
+        else{
+            return this.types[i];
+        }
     }
 
     /**
@@ -124,7 +140,18 @@ public class TupleDesc implements Serializable {
      */
     public int fieldNameToIndex(String name) throws NoSuchElementException {
         // some code goes here
-        return 0;
+        if (this.names == null){
+            throw new NoSuchElementException("所有均未被命名");
+        }
+        if (name == null){
+            throw new NoSuchElementException("不存在名称为null的字段");
+        }
+        for (int i = 0;i<this.names.length;i++){
+            if (this.names[i].equals(name)){
+                return i;
+            }
+        }
+        throw new NoSuchElementException("不存在名称为"+name+"的字段");
     }
 
     /**
@@ -133,7 +160,11 @@ public class TupleDesc implements Serializable {
      */
     public int getSize() {
         // some code goes here
-        return 0;
+        int size = 0;
+        for (int i = 0;i < this.types.length;i++){
+            size = size + this.types[i].getLen();
+        }
+        return size;
     }
 
     /**
@@ -148,7 +179,16 @@ public class TupleDesc implements Serializable {
      */
     public static TupleDesc merge(TupleDesc td1, TupleDesc td2) {
         // some code goes here
-        return null;
+        int len1 = td1.numFields();
+        int len2 = td2.numFields();
+
+        String[] new_names = new String[len1+len2];
+        Type[] new_types = new Type[len1+len2];
+        for(int i = 0;i<len1+len2;i++){
+            new_types[i] = i<len1?td1.getFieldType(i):td2.getFieldType(i-len1);
+            new_names[i] = i<len1?td1.getFieldName(i):td2.getFieldName(i-len1);
+        }
+        return new TupleDesc(new_types,new_names);
     }
 
     /**
@@ -164,6 +204,20 @@ public class TupleDesc implements Serializable {
 
     public boolean equals(Object o) {
         // some code goes here
+        TupleDesc oo;
+        try{
+            oo = (TupleDesc) o;
+        }catch (ClassCastException e){
+            return false;
+        }
+        if (oo.numFields() == this.numFields()){
+            for (int i = 0;i < oo.numFields() ; i++){
+                if (this.types[i] != oo.getFieldType(i)){
+                    return false;
+                }
+            }
+            return true;
+        }
         return false;
     }
 
