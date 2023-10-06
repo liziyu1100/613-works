@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
+
 /**
  * The Catalog keeps track of all available tables in the database and their
  * associated schemas.
@@ -27,8 +28,13 @@ public class Catalog {
      * Constructor.
      * Creates a new, empty catalog.
      */
+    private HashMap<String,DbFile>dbFiles;
+    private HashMap<String,String>pkeys;
     public Catalog() {
         // some code goes here
+        dbFiles = new HashMap<>();
+        pkeys = new HashMap<>();
+
     }
 
     /**
@@ -42,6 +48,9 @@ public class Catalog {
      */
     public void addTable(DbFile file, String name, String pkeyField) {
         // some code goes here
+        dbFiles.put(name,file);
+        pkeys.put(name,pkeyField);
+
     }
 
     public void addTable(DbFile file, String name) {
@@ -65,7 +74,11 @@ public class Catalog {
      */
     public int getTableId(String name) throws NoSuchElementException {
         // some code goes here
-        return 0;
+        DbFile dbFile = dbFiles.get(name);
+        if (dbFile != null){
+            return dbFile.getId();
+        }
+        throw new NoSuchElementException("没有这个表");
     }
 
     /**
@@ -76,7 +89,14 @@ public class Catalog {
      */
     public TupleDesc getTupleDesc(int tableid) throws NoSuchElementException {
         // some code goes here
-        return null;
+        for (Map.Entry entry : dbFiles.entrySet()) {
+            String name = (String) entry.getKey();
+            DbFile value = (DbFile) entry.getValue();
+            if(value.getId() == tableid){
+                return value.getTupleDesc();
+            }
+        }
+        throw new NoSuchElementException("没有这个元素");
     }
 
     /**
@@ -87,7 +107,15 @@ public class Catalog {
      */
     public DbFile getDatabaseFile(int tableid) throws NoSuchElementException {
         // some code goes here
-        return null;
+        // some code goes here
+        for (HashMap.Entry entry : dbFiles.entrySet()) {
+            String name = (String) entry.getKey();
+            DbFile value = (DbFile) entry.getValue();
+            if(value.getId() == tableid){
+                return value;
+            }
+        }
+        throw new NoSuchElementException("没有这个元素");
     }
 
     public String getPrimaryKey(int tableid) {
@@ -102,6 +130,13 @@ public class Catalog {
 
     public String getTableName(int id) {
         // some code goes here
+        for (HashMap.Entry entry : dbFiles.entrySet()) {
+            String name = (String) entry.getKey();
+            DbFile value = (DbFile) entry.getValue();
+            if(value.getId() == id){
+                return name;
+            }
+        }
         return null;
     }
     
