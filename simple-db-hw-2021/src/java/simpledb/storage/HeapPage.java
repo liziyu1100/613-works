@@ -27,7 +27,7 @@ public class HeapPage implements Page {
 
     byte[] oldData;
     private final Byte oldDataLock= (byte) 0;
-
+    private int used_slots = 0;
     /**
      * Create a HeapPage from a set of bytes of data read from disk.
      * The format of a HeapPage is a set of header bytes indicating
@@ -73,7 +73,9 @@ public class HeapPage implements Page {
     */
     private int getNumTuples() {        
         // some code goes here
-        return 0;
+        int tup_size = this.td.getSize();
+
+        return BufferPool.getPageSize()*8/(tup_size*8+1);
 
     }
 
@@ -84,7 +86,9 @@ public class HeapPage implements Page {
     private int getHeaderSize() {        
         
         // some code goes here
-        return 0;
+        if(this.numSlots%8>0)return this.numSlots/8+1;
+
+        return this.numSlots/8;
                  
     }
     
@@ -118,7 +122,8 @@ public class HeapPage implements Page {
      */
     public HeapPageId getId() {
     // some code goes here
-    throw new UnsupportedOperationException("implement this");
+    // throw new UnsupportedOperationException("implement this");
+        return this.pid;
     }
 
     /**
@@ -151,7 +156,7 @@ public class HeapPage implements Page {
             e.printStackTrace();
             throw new NoSuchElementException("parsing error!");
         }
-
+        this.used_slots = this.used_slots + 1;
         return t;
     }
 
@@ -288,7 +293,7 @@ public class HeapPage implements Page {
      */
     public int getNumEmptySlots() {
         // some code goes here
-        return 0;
+        return this.numSlots - this.used_slots;
     }
 
     /**
@@ -296,6 +301,10 @@ public class HeapPage implements Page {
      */
     public boolean isSlotUsed(int i) {
         // some code goes here
+        int pos_byte = i/8;
+        int pos_bit = i%8;
+        Byte b = this.header[pos_byte];
+        if (((b >> pos_bit) &1) == 1)return true;
         return false;
     }
 
@@ -313,7 +322,13 @@ public class HeapPage implements Page {
      */
     public Iterator<Tuple> iterator() {
         // some code goes here
-        return null;
+        ArrayList<Tuple> atups = new ArrayList<Tuple>();
+        for (int i = 0;i<tuples.length;i++){
+            if (tuples[i] !=null) {
+                atups.add(tuples[i]);
+            }
+        }
+        return atups.iterator();
     }
 
 }

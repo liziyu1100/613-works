@@ -29,8 +29,12 @@ public class HeapFile implements DbFile {
      *            the file that stores the on-disk backing store for this heap
      *            file.
      */
+    private File df;
+    private TupleDesc td;
     public HeapFile(File f, TupleDesc td) {
         // some code goes here
+        this.df = f;
+        this.td = td;
     }
 
     /**
@@ -40,7 +44,7 @@ public class HeapFile implements DbFile {
      */
     public File getFile() {
         // some code goes here
-        return null;
+        return this.df;
     }
 
     /**
@@ -54,7 +58,8 @@ public class HeapFile implements DbFile {
      */
     public int getId() {
         // some code goes here
-        throw new UnsupportedOperationException("implement this");
+        // throw new UnsupportedOperationException("implement this");
+        return this.df.getAbsoluteFile().hashCode();
     }
 
     /**
@@ -64,12 +69,30 @@ public class HeapFile implements DbFile {
      */
     public TupleDesc getTupleDesc() {
         // some code goes here
-        throw new UnsupportedOperationException("implement this");
+        // throw new UnsupportedOperationException("implement this");
+        return this.td;
     }
 
     // see DbFile.java for javadocs
     public Page readPage(PageId pid) {
         // some code goes here
+        FileInputStream fis=null;
+        byte[] resultBytes=new byte[BufferPool.getPageSize()];
+        int pgn = pid.getPageNumber();
+        int i = 0;
+        try{
+            fis=new FileInputStream(this.df);
+            int len;
+            while((len=fis.read(resultBytes))!=-1){
+                if (i == pgn){
+                    break;
+                }
+                i++;
+            }
+            return new HeapPage((HeapPageId) pid,resultBytes);
+        }catch (IOException e) {
+            e.printStackTrace();
+        }
         return null;
     }
 
@@ -84,7 +107,8 @@ public class HeapFile implements DbFile {
      */
     public int numPages() {
         // some code goes here
-        return 0;
+        if (this.df.length()%BufferPool.getPageSize()==0)return (int) (this.df.length()/BufferPool.getPageSize());
+        return (int) (this.df.length()/BufferPool.getPageSize()+1);
     }
 
     // see DbFile.java for javadocs
