@@ -130,7 +130,37 @@ public class HeapFile implements DbFile {
     // see DbFile.java for javadocs
     public DbFileIterator iterator(TransactionId tid) {
         // some code goes here
+        int i = 0;
+
+        while(i*BufferPool.getPageSize()< df.length()){
+
+        }
         return null;
+    }
+    public class HeapFileIterator extends AbstractDbFileIterator {
+        private boolean open = false;
+        private HeapFile hf;
+        public HeapFileIterator(HeapFile heapFile){
+            this.hf = heapFile;
+        }
+        @Override
+        protected Tuple readNext() throws DbException, TransactionAbortedException {
+            return null;
+        }
+
+        @Override
+        public void open() throws DbException, TransactionAbortedException {
+            open=true;
+        }
+
+        @Override
+        public void rewind() throws DbException, TransactionAbortedException {
+
+        }
+        @Override
+        public void close(){
+
+        }
     }
 
 }

@@ -33,6 +33,8 @@ public class BufferPool {
     constructor instead. */
     public static final int DEFAULT_PAGES = 50;
     private HeapPage[] pages;
+    private int cur_num;
+    private int the_oldest;
     /**
      * Creates a BufferPool that caches up to numPages pages.
      *
@@ -76,10 +78,10 @@ public class BufferPool {
         throws TransactionAbortedException, DbException {
         // some code goes here
 
-        for (int i = 0;i<this.pages.length;i++){
+        for (int i = 0;i<pages.length;i++){
             if (pages[i]!=null){
                 if (pages[i].getId().equals(pid)){
-
+                    return pages[i];
                 }
             }
         }
