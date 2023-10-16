@@ -80,16 +80,18 @@ public class HeapFile implements DbFile {
         byte[] resultBytes=new byte[BufferPool.getPageSize()];
         int pgn = pid.getPageNumber();
         int i = 0;
+        boolean sign = false;
         try{
             fis=new FileInputStream(this.df);
             int len;
             while((len=fis.read(resultBytes))!=-1){
-                if (i == pgn){
+                if (i == pgn-1){
+                    sign = true;
                     break;
                 }
                 i++;
             }
-            return new HeapPage((HeapPageId) pid,resultBytes);
+            return sign == true? new HeapPage((HeapPageId) pid,resultBytes):null;
         }catch (IOException e) {
             e.printStackTrace();
         }
@@ -130,24 +132,58 @@ public class HeapFile implements DbFile {
     // see DbFile.java for javadocs
     public DbFileIterator iterator(TransactionId tid) {
         // some code goes here
-        int i = 0;
 
-        while(i*BufferPool.getPageSize()< df.length()){
-
-        }
-        return null;
+        return new HeapFileIterator(this);
     }
-    public class HeapFileIterator extends AbstractDbFileIterator {
+    public class HeapFileIterator implements DbFileIterator  {
         private boolean open = false;
         private HeapFile hf;
+        private HeapPageId cur_pageid;
+        private Iterator<Tuple> cur_it;
+        private int page_num;
         public HeapFileIterator(HeapFile heapFile){
             this.hf = heapFile;
-        }
-        @Override
-        protected Tuple readNext() throws DbException, TransactionAbortedException {
-            return null;
+            cur_pageid = new HeapPageId(hf.getId(),1);
+            page_num = 0;
         }
 
+        @Override
+        public boolean hasNext() throws DbException, TransactionAbortedException {
+            if (open == false)return false;
+            if (next == null) next = readNext();
+            return next != null;
+        }
+        @Override
+        public Tuple next() throws DbException, TransactionAbortedException,
+                NoSuchElementException {
+            if (open == false)throw new NoSuchElementException("error,not open");
+            if (next == null) {
+                next = readNext();
+                if (next == null) throw new NoSuchElementException();
+            }
+
+            Tuple result = next;
+            next = null;
+            return result;
+        }
+
+        protected Tuple readNext() throws DbException, TransactionAbortedException {
+            if (this.cur_it == null){
+                HeapPage hp = (HeapPage) hf.readPage(cur_pageid);
+                cur_it = hp.iterator();
+                page_num = page_num+1;
+            }
+            if (this.cur_it.hasNext()){
+                return cur_it.next();
+            }
+            else{
+                if ((page_num+1)*BufferPool.getPageSize()>hf.getFile().length())return null;
+                cur_pageid = new HeapPageId(cur_pageid.getTableId(), cur_pageid.getPageNumber()+1);
+                HeapPage hp = (HeapPage) hf.readPage(cur_pageid);
+                cur_it = hp.iterator();
+                return readNext();
+            }
+        }
         @Override
         public void open() throws DbException, TransactionAbortedException {
             open=true;
@@ -159,8 +195,9 @@ public class HeapFile implements DbFile {
         }
         @Override
         public void close(){
-
+            open = false;
         }
+        private Tuple next = null;
     }
 
 }

@@ -9,6 +9,7 @@ import simpledb.storage.DbFileIterator;
 import simpledb.storage.Tuple;
 import simpledb.storage.TupleDesc;
 
+import javax.xml.crypto.Data;
 import java.util.*;
 
 /**
@@ -36,8 +37,17 @@ public class SeqScan implements OpIterator {
      *            are, but the resulting name can be null.fieldName,
      *            tableAlias.null, or null.null).
      */
+    private TransactionId transactionId;
+    private int tableid;
+    private String tablealias;
+    private boolean openSign;
     public SeqScan(TransactionId tid, int tableid, String tableAlias) {
         // some code goes here
+        this.tablealias = tableAlias;
+        this.transactionId = tid;
+        this.tableid = tableid;
+        this.openSign = false;
+
     }
 
     /**
@@ -46,7 +56,7 @@ public class SeqScan implements OpIterator {
      *       be the actual name of the table in the catalog of the database
      * */
     public String getTableName() {
-        return null;
+        return Database.getCatalog().getTableName(this.tableid);
     }
 
     /**
@@ -55,7 +65,7 @@ public class SeqScan implements OpIterator {
     public String getAlias()
     {
         // some code goes here
-        return null;
+        return this.tablealias;
     }
 
     /**
@@ -72,6 +82,8 @@ public class SeqScan implements OpIterator {
      */
     public void reset(int tableid, String tableAlias) {
         // some code goes here
+        this.tableid = tableid;
+        this.tablealias = tableAlias;
     }
 
     public SeqScan(TransactionId tid, int tableId) {
@@ -80,6 +92,7 @@ public class SeqScan implements OpIterator {
 
     public void open() throws DbException, TransactionAbortedException {
         // some code goes here
+        this.openSign = true;
     }
 
     /**
@@ -94,17 +107,22 @@ public class SeqScan implements OpIterator {
      */
     public TupleDesc getTupleDesc() {
         // some code goes here
-        return null;
+        return Database.getCatalog().getTupleDesc(this.tableid);
     }
 
     public boolean hasNext() throws TransactionAbortedException, DbException {
         // some code goes here
-        return false;
+        if (this.openSign == false)return false;
+        if (this.next==null){
+            next = next();
+        }
+        return next!=null;
     }
 
     public Tuple next() throws NoSuchElementException,
             TransactionAbortedException, DbException {
         // some code goes here
+
         return null;
     }
 
@@ -116,4 +134,5 @@ public class SeqScan implements OpIterator {
             TransactionAbortedException {
         // some code goes here
     }
+    private Tuple next;
 }
