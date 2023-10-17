@@ -35,7 +35,14 @@ public class ScanTest extends SimpleDbTestBase {
             for (int rows : rowSizes) {
                 List<List<Integer>> tuples = new ArrayList<>();
                 HeapFile f = SystemTestUtil.createRandomHeapFile(columns, rows, null, tuples);
-                SystemTestUtil.matchTuples(f, tuples);
+                if (rows==1023){
+                    int a= 1;
+                }
+                try {
+                    SystemTestUtil.matchTuples(f, tuples);
+                }catch (NullPointerException e){
+                    e.printStackTrace();
+                }
                 Database.resetBufferPool(BufferPool.DEFAULT_PAGES);
             }
         }

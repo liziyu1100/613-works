@@ -1,6 +1,7 @@
 package simpledb.execution;
 
 import simpledb.common.Database;
+import simpledb.storage.HeapFile;
 import simpledb.transaction.TransactionAbortedException;
 import simpledb.transaction.TransactionId;
 import simpledb.common.Type;
@@ -41,13 +42,16 @@ public class SeqScan implements OpIterator {
     private int tableid;
     private String tablealias;
     private boolean openSign;
+    private HeapFile hf;
+    private DbFileIterator dbFileIterator;
     public SeqScan(TransactionId tid, int tableid, String tableAlias) {
         // some code goes here
         this.tablealias = tableAlias;
         this.transactionId = tid;
         this.tableid = tableid;
         this.openSign = false;
-
+        this.hf = (HeapFile) Database.getCatalog().getDatabaseFile(tableid);
+        this.dbFileIterator = this.hf.iterator(tid);
     }
 
     /**
@@ -84,6 +88,8 @@ public class SeqScan implements OpIterator {
         // some code goes here
         this.tableid = tableid;
         this.tablealias = tableAlias;
+        this.hf = (HeapFile) Database.getCatalog().getDatabaseFile(tableid);
+        this.dbFileIterator = this.hf.iterator(this.transactionId);
     }
 
     public SeqScan(TransactionId tid, int tableId) {
@@ -107,32 +113,41 @@ public class SeqScan implements OpIterator {
      */
     public TupleDesc getTupleDesc() {
         // some code goes here
-        return Database.getCatalog().getTupleDesc(this.tableid);
+        String []far = new String[Database.getCatalog().getTupleDesc(this.tableid).numFields()];
+        Type[] ftp = new Type[far.length];
+        for (int i =0;i<far.length;i++){
+            far[i] = this.tablealias+"."+Database.getCatalog().getTupleDesc(this.tableid).getFieldName(i);
+            ftp[i] = Database.getCatalog().getTupleDesc(this.tableid).getFieldType(i);
+        }
+        return new TupleDesc(ftp,far);
     }
 
     public boolean hasNext() throws TransactionAbortedException, DbException {
         // some code goes here
         if (this.openSign == false)return false;
-        if (this.next==null){
-            next = next();
-        }
-        return next!=null;
+        this.dbFileIterator.open();
+        return this.dbFileIterator.hasNext();
     }
 
     public Tuple next() throws NoSuchElementException,
             TransactionAbortedException, DbException {
         // some code goes here
+        if (openSign == false)throw new NoSuchElementException("error,not open");
+        this.dbFileIterator.open();
+        return this.dbFileIterator.next();
 
-        return null;
     }
 
     public void close() {
         // some code goes here
+        this.openSign=false;
+        this.dbFileIterator.close();
     }
 
     public void rewind() throws DbException, NoSuchElementException,
             TransactionAbortedException {
         // some code goes here
+        this.dbFileIterator.rewind();
+
     }
-    private Tuple next;
 }

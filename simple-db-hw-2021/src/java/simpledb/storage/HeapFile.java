@@ -7,6 +7,7 @@ import simpledb.common.Permissions;
 import simpledb.transaction.TransactionAbortedException;
 import simpledb.transaction.TransactionId;
 
+import javax.xml.crypto.Data;
 import java.io.*;
 import java.util.*;
 
@@ -91,7 +92,12 @@ public class HeapFile implements DbFile {
                 }
                 i++;
             }
-            return sign == true? new HeapPage((HeapPageId) pid,resultBytes):null;
+            HeapPage hp = new HeapPage((HeapPageId) pid,resultBytes);
+            if (sign == true){
+
+                return hp;
+            }
+            return null;
         }catch (IOException e) {
             e.printStackTrace();
         }
@@ -169,7 +175,11 @@ public class HeapFile implements DbFile {
 
         protected Tuple readNext() throws DbException, TransactionAbortedException {
             if (this.cur_it == null){
-                HeapPage hp = (HeapPage) hf.readPage(cur_pageid);
+                HeapPage hp = (HeapPage) Database.getBufferPool().getPage(null,this.cur_pageid,null);
+                if (hp == null){
+                    hp = (HeapPage) hf.readPage(cur_pageid);
+                    Database.getBufferPool().addPage(null,hp);
+                }
                 cur_it = hp.iterator();
                 page_num = page_num+1;
             }
@@ -179,8 +189,13 @@ public class HeapFile implements DbFile {
             else{
                 if ((page_num+1)*BufferPool.getPageSize()>hf.getFile().length())return null;
                 cur_pageid = new HeapPageId(cur_pageid.getTableId(), cur_pageid.getPageNumber()+1);
-                HeapPage hp = (HeapPage) hf.readPage(cur_pageid);
+                HeapPage hp = (HeapPage) Database.getBufferPool().getPage(null,this.cur_pageid,null);
+                if (hp == null){
+                    hp = (HeapPage) hf.readPage(cur_pageid);
+                    Database.getBufferPool().addPage(null,hp);
+                }
                 cur_it = hp.iterator();
+                page_num = page_num+1;
                 return readNext();
             }
         }
@@ -191,7 +206,8 @@ public class HeapFile implements DbFile {
 
         @Override
         public void rewind() throws DbException, TransactionAbortedException {
-
+            this.cur_it=null;
+            this.page_num=0;
         }
         @Override
         public void close(){

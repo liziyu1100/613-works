@@ -33,8 +33,7 @@ public class BufferPool {
     constructor instead. */
     public static final int DEFAULT_PAGES = 50;
     private HeapPage[] pages;
-    private int cur_num;
-    private int the_oldest;
+    private int rest_num;
     /**
      * Creates a BufferPool that caches up to numPages pages.
      *
@@ -43,6 +42,7 @@ public class BufferPool {
     public BufferPool(int numPages) {
         // some code goes here
         this.pages = new HeapPage[numPages];
+        this.rest_num = numPages;
     }
     
     public static int getPageSize() {
@@ -86,6 +86,18 @@ public class BufferPool {
             }
         }
         return null;
+    }
+    public void addPage(TransactionId tid,Page page){
+        if (this.rest_num>0){
+            for (int i = 0;i<this.pages.length;i++){
+                if (this.pages[i]==null){
+                    this.pages[i]= (HeapPage) page;
+                    this.rest_num = this.rest_num-1;
+                    break;
+                }
+
+            }
+        }
     }
 
     /**
