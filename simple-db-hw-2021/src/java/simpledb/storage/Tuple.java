@@ -92,7 +92,13 @@ public class Tuple implements Serializable {
      */
     public String toString() {
         // some code goes here
-        throw new UnsupportedOperationException("Implement this");
+        // throw new UnsupportedOperationException("Implement this");
+        String result = "";
+        for (int i =0;i<this.fs.length;i++){
+            result = result + this.fs[i].toString()+" ";
+        }
+        return result;
+
     }
 
     /**
