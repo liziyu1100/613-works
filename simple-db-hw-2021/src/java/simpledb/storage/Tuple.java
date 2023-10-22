@@ -44,6 +44,23 @@ public class Tuple implements Serializable {
         return null;
     }
 
+    public static Tuple merge(Tuple tp1,Tuple tp2){
+        TupleDesc td1 = tp1.getTupleDesc();
+        TupleDesc td2 = tp2.getTupleDesc();
+        TupleDesc td3 = TupleDesc.merge(td1,td2);
+        Tuple result = new Tuple(td3);
+        for (int i = 0;i<td3.numFields();i++){
+            if (i<td1.numFields()){
+                result.setField(i,tp1.getField(i));
+            }
+            else{
+                result.setField(i, tp2.getField(i-td1.numFields()));
+            }
+
+        }
+        return result;
+    }
+
     /**
      * Set the RecordId information for this tuple.
      *
