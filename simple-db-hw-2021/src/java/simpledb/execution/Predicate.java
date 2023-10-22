@@ -1,6 +1,7 @@
 package simpledb.execution;
 
 import simpledb.storage.Field;
+import simpledb.storage.IntField;
 import simpledb.storage.Tuple;
 
 import java.io.Serializable;
@@ -106,6 +107,22 @@ public class Predicate implements Serializable {
      */
     public boolean filter(Tuple t) {
         // some code goes here
+        IntField field = (IntField) t.getField(this.field_number);
+        if (this.op == Op.EQUALS){
+            if (field.equals(this.fvalue))return true;
+        }
+        else if (this.op == Op.GREATER_THAN){
+            if (field.greater_than(this.fvalue))return true;
+        }
+        else if (this.op == Op.LESS_THAN){
+            if (field.less_than(this.fvalue))return true;
+        }
+        else if (this.op == Op.GREATER_THAN_OR_EQ){
+            if (field.equals(this.fvalue) || field.greater_than(this.fvalue))return true;
+        }
+        else if (this.op == Op.LESS_THAN_OR_EQ){
+            if (field.equals(this.fvalue) || field.less_than(this.fvalue))return true;
+        }
         return false;
     }
 

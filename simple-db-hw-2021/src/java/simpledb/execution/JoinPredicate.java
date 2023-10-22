@@ -1,6 +1,7 @@
 package simpledb.execution;
 
 import simpledb.storage.Field;
+import simpledb.storage.IntField;
 import simpledb.storage.Tuple;
 
 import java.io.Serializable;
@@ -13,6 +14,9 @@ public class JoinPredicate implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
+    private int field1;
+    private int field2;
+    private Predicate.Op op;
     /**
      * Constructor -- create a new predicate over two fields of two tuples.
      * 
@@ -29,6 +33,9 @@ public class JoinPredicate implements Serializable {
      */
     public JoinPredicate(int field1, Predicate.Op op, int field2) {
         // some code goes here
+        this.field1 = field1;
+        this.op = op;
+        this.field2 = field2;
     }
 
     /**
@@ -39,6 +46,24 @@ public class JoinPredicate implements Serializable {
      */
     public boolean filter(Tuple t1, Tuple t2) {
         // some code goes here
+        IntField f1 = (IntField) t1.getField(this.field1);
+        IntField f2 = (IntField) t2.getField(this.field2);
+        if (this.op == Predicate.Op.EQUALS){
+            if (f1.equals(f2))return true;
+        }
+        else if (this.op == Predicate.Op.GREATER_THAN){
+            if (f1.greater_than(f2))return true;
+        }
+        else if (this.op == Predicate.Op.LESS_THAN){
+            if (f1.less_than(f2))return true;
+        }
+        else if (this.op == Predicate.Op.GREATER_THAN_OR_EQ){
+            if (f1.equals(f2) || f1.greater_than(f2))return true;
+        }
+        else if (this.op == Predicate.Op.LESS_THAN_OR_EQ){
+            if (f1.equals(f2) || f1.less_than(f2))return true;
+        }
+
         return false;
     }
     

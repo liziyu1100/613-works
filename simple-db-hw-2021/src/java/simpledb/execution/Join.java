@@ -13,6 +13,9 @@ import java.util.*;
 public class Join extends Operator {
 
     private static final long serialVersionUID = 1L;
+    private OpIterator child1;
+    private OpIterator child2;
+    private JoinPredicate jp;
 
     /**
      * Constructor. Accepts two children to join and the predicate to join them
@@ -27,11 +30,14 @@ public class Join extends Operator {
      */
     public Join(JoinPredicate p, OpIterator child1, OpIterator child2) {
         // some code goes here
+        this.jp = p;
+        this.child1 = child1;
+        this.child2 = child2;
     }
 
     public JoinPredicate getJoinPredicate() {
         // some code goes here
-        return null;
+        return this.jp;
     }
 
     /**

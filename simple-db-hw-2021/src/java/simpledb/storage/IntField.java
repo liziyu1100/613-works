@@ -40,6 +40,16 @@ public class IntField implements Field {
         return ((IntField) field).value == value;
     }
 
+    public boolean greater_than(Object field){
+        if (!(field instanceof IntField)) return false;
+        return ((IntField) field).value < value;
+    }
+
+    public boolean less_than(Object field){
+        if (!(field instanceof IntField)) return false;
+        return ((IntField) field).value > value;
+    }
+
     public void serialize(DataOutputStream dos) throws IOException {
         dos.writeInt(value);
     }

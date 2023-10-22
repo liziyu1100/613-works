@@ -13,7 +13,10 @@ import java.util.*;
 public class Filter extends Operator {
 
     private static final long serialVersionUID = 1L;
-
+    private Predicate predicate;
+    private OpIterator child;
+    private Iterator<Tuple> iterator;
+    private List<Tuple> tps;
     /**
      * Constructor accepts a predicate to apply and a child operator to read
      * tuples to filter from.
@@ -25,29 +28,50 @@ public class Filter extends Operator {
      */
     public Filter(Predicate p, OpIterator child) {
         // some code goes here
+        this.predicate = p;
+        this.child = child;
+        this.tps = init_iterator();
+        this.iterator = this.tps.iterator();
+    }
+    private List<Tuple> init_iterator(){
+        List<Tuple> tuples = new ArrayList<Tuple>();
+        try {
+            this.child.open();
+            while (this.child.hasNext()){
+                Tuple t = this.child.next();
+                if (this.predicate.filter(t))tuples.add(t);
+            }
+            this.child.close();
+        }catch (Exception e){
+            e.printStackTrace();
+        }
+        return tuples;
     }
 
     public Predicate getPredicate() {
         // some code goes here
-        return null;
+        return this.predicate;
     }
 
     public TupleDesc getTupleDesc() {
         // some code goes here
-        return null;
+        return this.child.getTupleDesc();
     }
 
     public void open() throws DbException, NoSuchElementException,
             TransactionAbortedException {
         // some code goes here
+        super.open();
     }
 
     public void close() {
         // some code goes here
+        super.close();
     }
 
     public void rewind() throws DbException, TransactionAbortedException {
         // some code goes here
+        this.iterator = this.tps.iterator();
     }
 
     /**
@@ -62,6 +86,9 @@ public class Filter extends Operator {
     protected Tuple fetchNext() throws NoSuchElementException,
             TransactionAbortedException, DbException {
         // some code goes here
+        if (this.iterator.hasNext()){
+            return this.iterator.next();
+        }
         return null;
     }
 
