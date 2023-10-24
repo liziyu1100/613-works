@@ -1,7 +1,10 @@
 package simpledb.execution;
 
 import simpledb.common.Type;
-import simpledb.storage.Tuple;
+import simpledb.storage.*;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Knows how to compute some aggregate over a set of IntFields.
@@ -24,9 +27,25 @@ public class IntegerAggregator implements Aggregator {
      * @param what
      *            the aggregation operator
      */
+    private int gbfield;
+    private Type gbfieldtype;
+    private int afield;
+    private Op what;
+    private List<Field> gflist;
+    private List<Field> alist;
+    private TupleDesc cur_td;
+
 
     public IntegerAggregator(int gbfield, Type gbfieldtype, int afield, Op what) {
         // some code goes here
+        this.afield = afield;
+        this.gbfield = gbfield;
+        this.gbfieldtype = gbfieldtype;
+        this.what = what;
+        this.alist = new ArrayList<>();
+        if (gbfield != -1){
+            this.gflist = new ArrayList<>();
+        }
     }
 
     /**
@@ -38,6 +57,28 @@ public class IntegerAggregator implements Aggregator {
      */
     public void mergeTupleIntoGroup(Tuple tup) {
         // some code goes here
+        this.cur_td = tup.getTupleDesc();
+        if (this.gbfield != -1){
+            boolean sign = false;
+            int index = 0;
+            for (int i =0;i<gflist.size();i++){
+                if (gflist.get(i).equals(tup.getField(this.gbfield))){
+                    sign = true;
+                    index = i;
+                    break;
+                }
+            }
+            if (sign == false){
+                this.gflist.add(tup.getField(this.gbfield));
+                this.alist.add(tup.getField(this.afield));
+            }
+            else{
+                if (this.what == Op.SUM){
+                    int value = ((IntField)this.alist.get(index)).getValue()+((IntField)tup.getField(this.afield)).getValue();
+                    this.alist.set(index,new IntField(value));
+                }
+            }
+        }
     }
 
     /**
@@ -50,8 +91,30 @@ public class IntegerAggregator implements Aggregator {
      */
     public OpIterator iterator() {
         // some code goes here
-        throw new
-        UnsupportedOperationException("please implement me for lab2");
+        // throw new UnsupportedOperationException("please implement me for lab2");
+        if (this.gbfield == -1){
+            List<Tuple> tups = new ArrayList<>();
+            Type []types = {Type.INT_TYPE};
+            TupleDesc ttd = new TupleDesc(types);
+            for (int i =0;i<this.alist.size();i++){
+                Tuple tup=new Tuple(ttd);
+                tup.setField(0,this.alist.get(i));
+                tups.add(tup);
+            }
+            return new TupleIterator(ttd,tups);
+        }
+        else{
+            List<Tuple> tups = new ArrayList<>();
+            Type []types = {this.gbfieldtype,Type.INT_TYPE};
+            TupleDesc ttd = new TupleDesc(types);
+            for (int i =0;i<this.alist.size();i++){
+                Tuple tup=new Tuple(ttd);
+                tup.setField(1,this.alist.get(i));
+                tup.setField(0,this.gflist.get(i));
+                tups.add(tup);
+            }
+            return new TupleIterator(ttd, tups);
+        }
     }
 
 }
