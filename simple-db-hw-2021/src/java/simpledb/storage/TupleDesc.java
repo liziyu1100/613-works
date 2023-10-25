@@ -80,6 +80,10 @@ public class TupleDesc implements Serializable {
     public TupleDesc(Type[] typeAr) {
         // some code goes here
         this.types = typeAr;
+        this.names = new String[typeAr.length];
+        for (int i=0;i<typeAr.length;i++){
+            this.names[i]="undefinedname"+Integer.toString(i);
+        }
     }
 
     /**

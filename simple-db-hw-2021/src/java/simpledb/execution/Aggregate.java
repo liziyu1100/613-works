@@ -1,6 +1,8 @@
 package simpledb.execution;
 
 import simpledb.common.DbException;
+import simpledb.common.Type;
+import simpledb.storage.IntField;
 import simpledb.storage.Tuple;
 import simpledb.storage.TupleDesc;
 import simpledb.transaction.TransactionAbortedException;
@@ -30,8 +32,37 @@ public class Aggregate extends Operator {
      *               there is no grouping
      * @param aop    The aggregation operator to use
      */
+    private OpIterator child;
+    private int afield;
+    private int gfield;
+    private Aggregator.Op aop;
+    private OpIterator result;
     public Aggregate(OpIterator child, int afield, int gfield, Aggregator.Op aop) {
         // some code goes here
+        this.child = child;
+        this.afield = afield;
+        this.gfield = gfield;
+        this.aop = aop;
+        Aggregator agg;
+        if (this.child.getTupleDesc().getFieldType(this.afield).equals(Type.INT_TYPE)) {
+            agg = new IntegerAggregator(gfield, this.child.getTupleDesc().getFieldType(gfield), afield, aop);
+        }
+        else{
+            agg = new StringAggregator(gfield,this.child.getTupleDesc().getFieldType(gfield), afield, aop);
+        }
+        try{
+            child.open();
+            while (child.hasNext()){
+                Tuple tup = child.next();
+                agg.mergeTupleIntoGroup(tup);
+                if (((IntField)tup.getField(this.gfield)).getValue() == 43) System.out.println(tup.getField(this.afield));
+
+            }
+        }catch (Exception e){
+            e.printStackTrace();
+        }
+        this.result = agg.iterator();
+
     }
 
     /**
@@ -41,7 +72,7 @@ public class Aggregate extends Operator {
      */
     public int groupField() {
         // some code goes here
-        return -1;
+        return this.gfield;
     }
 
     /**
@@ -51,6 +82,9 @@ public class Aggregate extends Operator {
      */
     public String groupFieldName() {
         // some code goes here
+        if (this.gfield != -1){
+            return this.child.getTupleDesc().getFieldName(this.gfield);
+        }
         return null;
     }
 
@@ -59,7 +93,7 @@ public class Aggregate extends Operator {
      */
     public int aggregateField() {
         // some code goes here
-        return -1;
+        return this.afield;
     }
 
     /**
@@ -68,7 +102,7 @@ public class Aggregate extends Operator {
      */
     public String aggregateFieldName() {
         // some code goes here
-        return null;
+        return this.child.getTupleDesc().getFieldName(this.afield);
     }
 
     /**
@@ -76,7 +110,7 @@ public class Aggregate extends Operator {
      */
     public Aggregator.Op aggregateOp() {
         // some code goes here
-        return null;
+        return this.aop;
     }
 
     public static String nameOfAggregatorOp(Aggregator.Op aop) {
@@ -86,6 +120,8 @@ public class Aggregate extends Operator {
     public void open() throws NoSuchElementException, DbException,
             TransactionAbortedException {
         // some code goes here
+        super.open();
+        this.result.open();
     }
 
     /**
@@ -97,11 +133,13 @@ public class Aggregate extends Operator {
      */
     protected Tuple fetchNext() throws TransactionAbortedException, DbException {
         // some code goes here
+        if (this.result.hasNext())return this.result.next();
         return null;
     }
 
     public void rewind() throws DbException, TransactionAbortedException {
         // some code goes here
+        this.result.rewind();
     }
 
     /**
@@ -117,11 +155,26 @@ public class Aggregate extends Operator {
      */
     public TupleDesc getTupleDesc() {
         // some code goes here
-        return null;
+        String aggname = this.aop.toString() +"(";
+        String afname = this.aggregateFieldName()+")";
+        if (this.gfield != -1){
+            Type[] types = {this.child.getTupleDesc().getFieldType(this.gfield),Type.INT_TYPE};
+            String[] strs = {this.child.getTupleDesc().getFieldName(this.gfield),aggname+afname};
+            TupleDesc td = new TupleDesc(types,strs);
+            return td;
+        }
+        else{
+            Type[] types = {Type.INT_TYPE};
+            String[] strs = {aggname+afname};
+            TupleDesc td = new TupleDesc(types,strs);
+            return td;
+        }
     }
 
     public void close() {
         // some code goes here
+        super.close();
+        this.result.close();
     }
 
     @Override
