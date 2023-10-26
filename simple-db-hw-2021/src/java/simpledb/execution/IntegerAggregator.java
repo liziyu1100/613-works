@@ -35,6 +35,7 @@ public class IntegerAggregator implements Aggregator {
     private List<Field> alist;
     private TupleDesc cur_td;
     private List<Integer> grp_num;
+    private List<Integer>grp_sum;
 
 
     public IntegerAggregator(int gbfield, Type gbfieldtype, int afield, Op what) {
@@ -48,6 +49,7 @@ public class IntegerAggregator implements Aggregator {
             this.gflist = new ArrayList<>();
         }
         this.grp_num = new ArrayList<>();
+        this.grp_sum = new ArrayList<>();
     }
 
     /**
@@ -79,6 +81,7 @@ public class IntegerAggregator implements Aggregator {
                     this.alist.add(tup.getField(this.afield));
                 }
                 this.grp_num.add(1);
+                this.grp_sum.add(((IntField)tup.getField(this.afield)).getValue());
             }
             else{
                 if (this.what == Op.SUM){
@@ -100,9 +103,9 @@ public class IntegerAggregator implements Aggregator {
                     }
                 }
                 else if (this.what == Op.AVG){
-                    int cur_value = ((IntField)this.alist.get(index)).getValue();
+                    int cur_value = this.grp_sum.get(index);
                     int tup_value = ((IntField)tup.getField(this.afield)).getValue();
-                    cur_value = (cur_value * this.grp_num.get(index)+tup_value)/(this.grp_num.get(index)+1);
+                    cur_value = (cur_value +tup_value)/(this.grp_num.get(index)+1);
                     this.alist.set(index,new IntField(cur_value));
                 }
                 else if (this.what == Op.COUNT){
@@ -112,7 +115,54 @@ public class IntegerAggregator implements Aggregator {
                     this.alist.set(index,new IntField(cur_value));
                 }
                 this.grp_num.set(index,this.grp_num.get(index)+1);
+                this.grp_sum.set(index,this.grp_sum.get(index)+((IntField)tup.getField(this.afield)).getValue());
             }
+        }
+        else{
+            int index = 0;
+            if (this.grp_sum.size()==0){
+                this.grp_sum.add(0);
+                this.grp_num.add(0);
+                if (this.what == Op.COUNT){
+                    this.alist.add(new IntField(1));
+                }
+                else{
+                    this.alist.add(tup.getField(this.afield));
+                }
+                return;
+            }
+            if (this.what == Op.SUM){
+                int value = ((IntField)this.alist.get(index)).getValue()+((IntField)tup.getField(this.afield)).getValue();
+                this.alist.set(index,new IntField(value));
+            }
+            else if (this.what == Op.MIN){
+                int cur_value = ((IntField)this.alist.get(index)).getValue();
+                int tup_value = ((IntField)tup.getField(this.afield)).getValue();
+                if (tup_value < cur_value) {
+                    this.alist.set(index,new IntField(tup_value));
+                }
+            }
+            else if (this.what == Op.MAX){
+                int cur_value = ((IntField)this.alist.get(index)).getValue();
+                int tup_value = ((IntField)tup.getField(this.afield)).getValue();
+                if (tup_value > cur_value) {
+                    this.alist.set(index,new IntField(tup_value));
+                }
+            }
+            else if (this.what == Op.AVG){
+                int cur_value = this.grp_sum.get(index);
+                int tup_value = ((IntField)tup.getField(this.afield)).getValue();
+                cur_value = (cur_value +tup_value)/(this.grp_num.get(index)+1);
+                this.alist.set(index,new IntField(cur_value));
+            }
+            else if (this.what == Op.COUNT){
+                int cur_value = ((IntField)this.alist.get(index)).getValue();
+                int tup_value = 1;
+                cur_value = cur_value + tup_value;
+                this.alist.set(index,new IntField(cur_value));
+            }
+            this.grp_num.set(index,this.grp_num.get(index)+1);
+            this.grp_sum.set(index,this.grp_sum.get(index)+((IntField)tup.getField(this.afield)).getValue());
         }
     }
 

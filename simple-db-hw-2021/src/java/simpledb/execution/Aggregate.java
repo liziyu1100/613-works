@@ -45,18 +45,17 @@ public class Aggregate extends Operator {
         this.aop = aop;
         Aggregator agg;
         if (this.child.getTupleDesc().getFieldType(this.afield).equals(Type.INT_TYPE)) {
-            agg = new IntegerAggregator(gfield, this.child.getTupleDesc().getFieldType(gfield), afield, aop);
+            agg = new IntegerAggregator(gfield, gfield == -1?null:this.child.getTupleDesc().getFieldType(gfield), afield, aop);
         }
         else{
-            agg = new StringAggregator(gfield,this.child.getTupleDesc().getFieldType(gfield), afield, aop);
+            agg = new StringAggregator(gfield,gfield == -1?null:this.child.getTupleDesc().getFieldType(gfield), afield, aop);
         }
         try{
             child.open();
             while (child.hasNext()){
                 Tuple tup = child.next();
                 agg.mergeTupleIntoGroup(tup);
-                if (((IntField)tup.getField(this.gfield)).getValue() == 43) System.out.println(tup.getField(this.afield));
-
+//                if (((IntField)tup.getField(this.gfield)).getValue() == 52) System.out.println(tup.getField(this.afield));
             }
         }catch (Exception e){
             e.printStackTrace();
