@@ -14,6 +14,7 @@ public class Tuple implements Serializable {
     private static final long serialVersionUID = 1L;
     private TupleDesc td;
     private Field[] fs;
+    private RecordId recordId;
     /**
      * Create a new tuple with the specified schema (type).
      *
@@ -41,7 +42,7 @@ public class Tuple implements Serializable {
      */
     public RecordId getRecordId() {
         // some code goes here
-        return null;
+        return this.recordId;
     }
 
     public static Tuple merge(Tuple tp1,Tuple tp2){
@@ -69,6 +70,7 @@ public class Tuple implements Serializable {
      */
     public void setRecordId(RecordId rid) {
         // some code goes here
+        this.recordId = rid;
     }
 
     /**
@@ -117,6 +119,7 @@ public class Tuple implements Serializable {
         return result;
 
     }
+
 
     /**
      * @return
