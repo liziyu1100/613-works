@@ -9,6 +9,7 @@ import simpledb.transaction.TransactionId;
 
 import java.io.*;
 
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -77,18 +78,32 @@ public class BufferPool {
     public  Page getPage(TransactionId tid, PageId pid, Permissions perm)
         throws TransactionAbortedException, DbException {
         // some code goes here
-
+        int visit_rest = DEFAULT_PAGES - rest_num;
         for (int i = 0;i<pages.length;i++){
             if (pages[i]!=null){
                 if (pages[i].getId().equals(pid)){
                     return pages[i];
                 }
             }
+            if (visit_rest == 0)break;
+        }
+        HeapPage nhp = (HeapPage) Database.getCatalog().getDatabaseFile(pid.getTableId()).readPage(pid);
+        if (nhp != null){
+            this.addPage(tid,nhp);
+            return nhp;
         }
         return null;
     }
     public void addPage(TransactionId tid,Page page){
         if (this.rest_num>0){
+            for (int i = 0;i<this.pages.length;i++){
+                if (this.pages[i]!=null){
+                    if (this.pages[i].getId().equals(page.getId())){
+                        this.pages[i] = (HeapPage) page;
+                        return;
+                    }
+                }
+            }
             for (int i = 0;i<this.pages.length;i++){
                 if (this.pages[i]==null){
                     this.pages[i]= (HeapPage) page;
@@ -162,6 +177,25 @@ public class BufferPool {
         throws DbException, IOException, TransactionAbortedException {
         // some code goes here
         // not necessary for lab1
+//        boolean sign =false;
+//        int i = 0;
+//        while (!sign){
+//            HeapPageId heapPageId = new HeapPageId(tableId,i);
+//            HeapPage heapPage = (HeapPage) this.getPage(tid,heapPageId,Permissions.READ_WRITE);
+//            try{
+//                heapPage.insertTuple(t);
+//                heapPage.markDirty(true,tid);
+//            }catch (Exception e){
+//                i = i+1;
+//                continue;
+//            }
+//            sign = true;
+//        }
+        DbFile hdf = Database.getCatalog().getDatabaseFile(tableId);
+        List<Page> dtp =  hdf.insertTuple(tid,t);
+        for (int i =0;i<dtp.size();i++){
+            this.addPage(tid,dtp.get(i));
+        }
     }
 
     /**
@@ -181,6 +215,16 @@ public class BufferPool {
         throws DbException, IOException, TransactionAbortedException {
         // some code goes here
         // not necessary for lab1
+//        HeapPageId heapPageId = (HeapPageId) t.getRecordId().getPageId();
+//        HeapPage hp = (HeapPage) this.getPage(tid,heapPageId,Permissions.READ_WRITE);
+//        hp.deleteTuple(t);
+//        hp.markDirty(true,tid);
+        int tableid = t.getRecordId().getPageId().getTableId();
+        DbFile hdf = Database.getCatalog().getDatabaseFile(tableid);
+        List<Page> dtp =  hdf.deleteTuple(tid,t);
+        for (int i =0;i<dtp.size();i++){
+            this.addPage(tid,dtp.get(i));
+        }
     }
 
     /**

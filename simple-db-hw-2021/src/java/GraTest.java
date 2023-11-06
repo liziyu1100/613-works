@@ -8,7 +8,12 @@ public class GraTest {
         }
     }
     public static void main(String[] args) {
-        person[]temp = new person[50];
-        int a=5;
+        person temp = null;
+        try {
+            temp.a=5;
+            int b = 5;
+        }catch (Exception e){
+            e.printStackTrace();
+        }
     }
 }

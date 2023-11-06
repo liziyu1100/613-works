@@ -86,28 +86,43 @@ public class HeapFile implements DbFile {
             fis=new FileInputStream(this.df);
             int len;
             while((len=fis.read(resultBytes))!=-1){
-                if (i == pgn-1){
+                if (i == pgn){
                     sign = true;
                     break;
                 }
                 i++;
             }
             HeapPage hp = new HeapPage((HeapPageId) pid,resultBytes);
-            if (sign == true){
+            return hp;
 
-                return hp;
-            }
-            return null;
         }catch (IOException e) {
             e.printStackTrace();
+            return null;
         }
-        return null;
     }
 
     // see DbFile.java for javadocs
     public void writePage(Page page) throws IOException {
         // some code goes here
         // not necessary for lab1
+        int pgn = page.getId().getPageNumber();
+        FileOutputStream fileOutputStream = new FileOutputStream(this.df,true);
+        if (pgn+1>this.numPages()){
+            for (int i =this.numPages();i<pgn+1;i++){
+                byte[]bytes = new byte[BufferPool.getPageSize()];
+                Arrays.fill(bytes, (byte) 0);
+                fileOutputStream.write(bytes);
+            }
+            fileOutputStream.close();
+        }
+
+        fileOutputStream.close();
+        RandomAccessFile randomAccessFile = new RandomAccessFile(this.df,"rw");
+        randomAccessFile.seek(pgn*BufferPool.getPageSize());
+        randomAccessFile.write(page.getPageData());
+        randomAccessFile.close();
+
+
     }
 
     /**
@@ -123,7 +138,25 @@ public class HeapFile implements DbFile {
     public List<Page> insertTuple(TransactionId tid, Tuple t)
             throws DbException, IOException, TransactionAbortedException {
         // some code goes here
-        return null;
+        List<Page> dtp = new ArrayList<>();
+        for (int i =0;i<this.numPages();i++){
+            HeapPage hp1 = (HeapPage) Database.getBufferPool().getPage(tid,new HeapPageId(this.getId(),i),Permissions.READ_WRITE);
+            if (hp1!=null){
+                if (hp1.getNumEmptySlots()==0)continue;
+                hp1.insertTuple(t);
+                hp1.markDirty(true,tid);
+                dtp.add(hp1);
+                return dtp;
+            }
+        }
+        byte [] data = new byte[BufferPool.getPageSize()];
+        Arrays.fill(data, (byte) 0);
+        HeapPage nhp = (HeapPage) Database.getBufferPool().getPage(tid,new HeapPageId(this.getId(),this.numPages()),Permissions.READ_WRITE);
+        nhp.insertTuple(t);
+        //nhp.markDirty(true,tid);
+        dtp.add(nhp);
+        this.writePage(nhp);
+        return dtp;
         // not necessary for lab1
     }
 
@@ -131,8 +164,16 @@ public class HeapFile implements DbFile {
     public ArrayList<Page> deleteTuple(TransactionId tid, Tuple t) throws DbException,
             TransactionAbortedException {
         // some code goes here
-        return null;
+//        return null;
         // not necessary for lab1
+        ArrayList<Page> dtp = new ArrayList<>();
+        HeapPageId heapPageId = (HeapPageId) t.getRecordId().getPageId();
+        HeapPage hp = (HeapPage) Database.getBufferPool().getPage(tid,heapPageId,Permissions.READ_WRITE);
+        hp.deleteTuple(t);
+        hp.markDirty(true,tid);
+        dtp.add(hp);
+        return dtp;
+
     }
 
     // see DbFile.java for javadocs
@@ -149,7 +190,7 @@ public class HeapFile implements DbFile {
         private int page_num;
         public HeapFileIterator(HeapFile heapFile){
             this.hf = heapFile;
-            cur_pageid = new HeapPageId(hf.getId(),1);
+            cur_pageid = new HeapPageId(hf.getId(),0);
             page_num = 0;
         }
 

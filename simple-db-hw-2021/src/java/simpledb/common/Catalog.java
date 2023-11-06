@@ -30,10 +30,12 @@ public class Catalog {
      */
     private HashMap<String,DbFile>dbFiles;
     private HashMap<String,String>pkeys;
+    private HashMap<Integer, DbFile> idtofile;
     public Catalog() {
         // some code goes here
         dbFiles = new HashMap<>();
         pkeys = new HashMap<>();
+        idtofile = new HashMap<>();
 
     }
 
@@ -50,7 +52,7 @@ public class Catalog {
         // some code goes here
         dbFiles.put(name,file);
         pkeys.put(name,pkeyField);
-
+        idtofile.put(file.getId(),file);
     }
 
     public void addTable(DbFile file, String name) {
@@ -108,13 +110,15 @@ public class Catalog {
     public DbFile getDatabaseFile(int tableid) throws NoSuchElementException {
         // some code goes here
         // some code goes here
-        for (HashMap.Entry entry : dbFiles.entrySet()) {
-            String name = (String) entry.getKey();
-            DbFile value = (DbFile) entry.getValue();
-            if(value.getId() == tableid){
-                return value;
-            }
-        }
+//        for (HashMap.Entry entry : dbFiles.entrySet()) {
+//            String name = (String) entry.getKey();
+//            DbFile value = (DbFile) entry.getValue();
+//            if(value.getId() == tableid){
+//                return value;
+//            }
+//        }
+        DbFile dbFile = idtofile.get(tableid);
+        if (dbFile != null)return dbFile;
         throw new NoSuchElementException("没有这个元素");
     }
 
