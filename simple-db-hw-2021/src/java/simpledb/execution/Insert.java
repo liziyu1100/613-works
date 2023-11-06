@@ -2,11 +2,15 @@ package simpledb.execution;
 
 import simpledb.common.Database;
 import simpledb.common.DbException;
-import simpledb.storage.BufferPool;
-import simpledb.storage.Tuple;
-import simpledb.storage.TupleDesc;
+import simpledb.common.Type;
+import simpledb.storage.*;
 import simpledb.transaction.TransactionAbortedException;
 import simpledb.transaction.TransactionId;
+
+import javax.xml.crypto.Data;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 
 /**
  * Inserts tuples read from the child operator into the tableId specified in the
@@ -15,7 +19,11 @@ import simpledb.transaction.TransactionId;
 public class Insert extends Operator {
 
     private static final long serialVersionUID = 1L;
-
+    private TransactionId transactionId;
+    private OpIterator child;
+    private int tableId;
+    private int in_num;
+    private Iterator<Tuple>res_it;
     /**
      * Constructor.
      *
@@ -32,19 +40,47 @@ public class Insert extends Operator {
     public Insert(TransactionId t, OpIterator child, int tableId)
             throws DbException {
         // some code goes here
+        this.child=child;
+        this.transactionId = t;
+        this.tableId = tableId;
+        in_num = 0;
+        init();
+
+    }
+    private void init(){
+        try{
+            child.open();
+            while (child.hasNext()){
+                Tuple t = child.next();
+                Database.getBufferPool().insertTuple(this.transactionId,tableId,t);
+                in_num = in_num +1;
+            }
+            child.close();
+            List<Tuple> res = new ArrayList<>();
+            Type[] types = {Type.INT_TYPE};
+            Tuple t =  new Tuple(new TupleDesc(types));
+            t.setField(0,new IntField(in_num));
+            res.add(t);
+            res_it = res.iterator();
+        }catch (Exception e){
+            e.printStackTrace();
+        }
+
     }
 
     public TupleDesc getTupleDesc() {
         // some code goes here
-        return null;
+        return Database.getCatalog().getTupleDesc(this.tableId);
     }
 
     public void open() throws DbException, TransactionAbortedException {
         // some code goes here
+        super.open();
     }
 
     public void close() {
         // some code goes here
+        super.close();
     }
 
     public void rewind() throws DbException, TransactionAbortedException {
@@ -66,6 +102,7 @@ public class Insert extends Operator {
      */
     protected Tuple fetchNext() throws TransactionAbortedException, DbException {
         // some code goes here
+        if (res_it.hasNext())return res_it.next();
         return null;
     }
 

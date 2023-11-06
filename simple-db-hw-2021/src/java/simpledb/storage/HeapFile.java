@@ -217,10 +217,6 @@ public class HeapFile implements DbFile {
         protected Tuple readNext() throws DbException, TransactionAbortedException {
             if (this.cur_it == null){
                 HeapPage hp = (HeapPage) Database.getBufferPool().getPage(null,this.cur_pageid,null);
-                if (hp == null){
-                    hp = (HeapPage) hf.readPage(cur_pageid);
-                    Database.getBufferPool().addPage(null,hp);
-                }
                 cur_it = hp.iterator();
                 page_num = page_num+1;
             }

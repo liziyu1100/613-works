@@ -68,6 +68,8 @@ public class HeapPage implements Page {
         dis.close();
 
         setBeforeImage();
+        this.dirty =false;
+        this.mark_dirty_tid = null;
     }
 
     /** Retrieve the number of tuples on this page.
@@ -271,6 +273,7 @@ public class HeapPage implements Page {
                 }
                 if (sign == true){
                     this.markSlotUsed(i,false);
+                    this.tuples[i] = null;
                     break;
                 }
             }

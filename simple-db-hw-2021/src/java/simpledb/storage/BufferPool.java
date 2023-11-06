@@ -235,7 +235,13 @@ public class BufferPool {
     public synchronized void flushAllPages() throws IOException {
         // some code goes here
         // not necessary for lab1
-
+        for (int i =0;i<pages.length;i++){
+            if (pages[i]!=null){
+                if (pages[i].isDirty()!=null){
+                    Database.getCatalog().getDatabaseFile(pages[i].getId().getTableId()).writePage(pages[i]);
+                }
+            }
+        }
     }
 
     /** Remove the specific page id from the buffer pool.
