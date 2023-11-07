@@ -227,10 +227,10 @@ public class HeapFile implements DbFile {
                 if ((page_num+1)*BufferPool.getPageSize()>hf.getFile().length())return null;
                 cur_pageid = new HeapPageId(cur_pageid.getTableId(), cur_pageid.getPageNumber()+1);
                 HeapPage hp = (HeapPage) Database.getBufferPool().getPage(null,this.cur_pageid,null);
-                if (hp == null){
-                    hp = (HeapPage) hf.readPage(cur_pageid);
-                    Database.getBufferPool().addPage(null,hp);
-                }
+//                if (hp == null){
+//                    hp = (HeapPage) hf.readPage(cur_pageid);
+//                    Database.getBufferPool().addPage(null,hp);
+//                }
                 cur_it = hp.iterator();
                 page_num = page_num+1;
                 return readNext();

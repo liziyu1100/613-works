@@ -6,10 +6,11 @@ import simpledb.common.DbException;
 import simpledb.common.DeadlockException;
 import simpledb.transaction.TransactionAbortedException;
 import simpledb.transaction.TransactionId;
+import sun.misc.LRUCache;
 
 import java.io.*;
 
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -35,6 +36,7 @@ public class BufferPool {
     public static final int DEFAULT_PAGES = 50;
     private HeapPage[] pages;
     private int rest_num;
+    private LinkedHashMap<HeapPageId,Integer> page_q;
     /**
      * Creates a BufferPool that caches up to numPages pages.
      *
@@ -44,6 +46,7 @@ public class BufferPool {
         // some code goes here
         this.pages = new HeapPage[numPages];
         this.rest_num = numPages;
+        this.page_q = new LinkedHashMap<>();
     }
     
     public static int getPageSize() {
@@ -94,25 +97,35 @@ public class BufferPool {
         }
         return null;
     }
-    public void addPage(TransactionId tid,Page page){
-        if (this.rest_num>0){
-            for (int i = 0;i<this.pages.length;i++){
-                if (this.pages[i]!=null){
-                    if (this.pages[i].getId().equals(page.getId())){
-                        this.pages[i] = (HeapPage) page;
-                        return;
-                    }
+    public void addPage(TransactionId tid,Page page ){
+        for (int i = 0;i<this.pages.length;i++){
+            if (this.pages[i]!=null){
+                if (this.pages[i].getId().equals(page.getId())){
+                    this.pages[i] = (HeapPage) page;
+                    page_q.get(pages[i].getId());
+                    return;
                 }
             }
+        }
+        if (this.rest_num>0){
             for (int i = 0;i<this.pages.length;i++){
                 if (this.pages[i]==null){
                     this.pages[i]= (HeapPage) page;
                     this.rest_num = this.rest_num-1;
-                    break;
+                    page_q.put(pages[i].getId(),1);
+                    return;
                 }
-
             }
         }
+        else{
+            try {
+                evictPage();
+            }catch (Exception e){
+                e.printStackTrace();
+            }
+            addPage(tid,page);
+        }
+
     }
 
     /**
@@ -239,6 +252,7 @@ public class BufferPool {
             if (pages[i]!=null){
                 if (pages[i].isDirty()!=null){
                     Database.getCatalog().getDatabaseFile(pages[i].getId().getTableId()).writePage(pages[i]);
+                    pages[i].markDirty(false,null);
                 }
             }
         }
@@ -264,6 +278,17 @@ public class BufferPool {
     private synchronized  void flushPage(PageId pid) throws IOException {
         // some code goes here
         // not necessary for lab1
+        int visit_rest = DEFAULT_PAGES - rest_num;
+        for (int i = 0;i<pages.length;i++){
+            if (pages[i]!=null){
+                if (pages[i].getId().equals(pid) && pages[i].isDirty()!=null){
+                    Database.getCatalog().getDatabaseFile(pages[i].getId().getTableId()).writePage(pages[i]);
+                    pages[i].markDirty(false,null);
+                }
+            }
+            if (visit_rest == 0)break;
+        }
+
     }
 
     /** Write all pages of the specified transaction to disk.
@@ -280,6 +305,26 @@ public class BufferPool {
     private synchronized  void evictPage() throws DbException {
         // some code goes here
         // not necessary for lab1
+        HeapPageId key = null;
+        for (Map.Entry<HeapPageId, Integer> mapElement : page_q.entrySet()) {
+            // 获取键
+            key = mapElement.getKey();
+            page_q.remove(key);
+            break;
+        }
+        for (int i = 0;i<pages.length;i++){
+            if (pages[i].getId().equals(key)){
+                if (pages[i].isDirty() != null){
+                    try {
+                        flushPage(key);
+                    }catch (Exception e){
+                        e.printStackTrace();
+                    }
+                }
+                pages[i] = null;
+                rest_num = rest_num + 1;
+            }
+        }
     }
 
 }
