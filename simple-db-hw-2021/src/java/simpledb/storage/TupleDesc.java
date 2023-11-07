@@ -186,13 +186,13 @@ public class TupleDesc implements Serializable {
         int len1 = td1.numFields();
         int len2 = td2.numFields();
 
-        //String[] new_names = new String[len1+len2];
+        String[] new_names = new String[len1+len2];
         Type[] new_types = new Type[len1+len2];
         for(int i = 0;i<len1+len2;i++){
             new_types[i] = i<len1?td1.getFieldType(i):td2.getFieldType(i-len1);
-            //new_names[i] = i<len1?td1.getFieldName(i):td2.getFieldName(i-len1);
+            new_names[i] = i<len1?td1.getFieldName(i):td2.getFieldName(i-len1);
         }
-        return new TupleDesc(new_types);
+        return new TupleDesc(new_types,new_names);
     }
 
     /**

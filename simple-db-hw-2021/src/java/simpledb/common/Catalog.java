@@ -1,6 +1,5 @@
 package simpledb.common;
 
-import simpledb.common.Type;
 import simpledb.storage.DbFile;
 import simpledb.storage.HeapFile;
 import simpledb.storage.TupleDesc;
@@ -10,7 +9,6 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 
 
 /**
@@ -28,15 +26,17 @@ public class Catalog {
      * Constructor.
      * Creates a new, empty catalog.
      */
-    private HashMap<String,DbFile>dbFiles;
-    private HashMap<String,String>pkeys;
+    public class Table{
+
+    }
+    private HashMap<String,Integer> nametoid;
+    private HashMap<Integer,String>pkeys;
     private HashMap<Integer, DbFile> idtofile;
     public Catalog() {
         // some code goes here
-        dbFiles = new HashMap<>();
+        nametoid = new HashMap<>();
         pkeys = new HashMap<>();
         idtofile = new HashMap<>();
-
     }
 
     /**
@@ -50,8 +50,17 @@ public class Catalog {
      */
     public void addTable(DbFile file, String name, String pkeyField) {
         // some code goes here
-        dbFiles.put(name,file);
-        pkeys.put(name,pkeyField);
+        for (Map.Entry entry : nametoid.entrySet()) {
+            int tableid = (Integer) entry.getValue();
+            String key =  (String) entry.getKey();
+            if(tableid == file.getId()){
+                nametoid.remove(key);
+                idtofile.remove(tableid);
+                break;
+            }
+        }
+        nametoid.put(name,file.getId());
+        pkeys.put(file.getId(), pkeyField);
         idtofile.put(file.getId(),file);
     }
 
@@ -76,11 +85,16 @@ public class Catalog {
      */
     public int getTableId(String name) throws NoSuchElementException {
         // some code goes here
-        DbFile dbFile = dbFiles.get(name);
-        if (dbFile != null){
-            return dbFile.getId();
-        }
-        throw new NoSuchElementException("没有这个表");
+//        for (Map.Entry entry : idtoname.entrySet()) {
+//            int tableid = (Integer) entry.getKey();
+//            String value =  (String) entry.getValue();
+//            if(value == name){
+//                return tableid;
+//            }
+//        }
+        if (this.nametoid.get(name)!=null)
+            return this.nametoid.get(name);
+        throw new NoSuchElementException("没有这个名字的表");
     }
 
     /**
@@ -91,13 +105,8 @@ public class Catalog {
      */
     public TupleDesc getTupleDesc(int tableid) throws NoSuchElementException {
         // some code goes here
-        for (Map.Entry entry : dbFiles.entrySet()) {
-            String name = (String) entry.getKey();
-            DbFile value = (DbFile) entry.getValue();
-            if(value.getId() == tableid){
-                return value.getTupleDesc();
-            }
-        }
+        DbFile dbFile = this.idtofile.get(tableid);
+        if (dbFile != null)return dbFile.getTupleDesc();
         throw new NoSuchElementException("没有这个元素");
     }
 
@@ -134,10 +143,10 @@ public class Catalog {
 
     public String getTableName(int id) {
         // some code goes here
-        for (HashMap.Entry entry : dbFiles.entrySet()) {
+        for (HashMap.Entry entry : nametoid.entrySet()) {
             String name = (String) entry.getKey();
-            DbFile value = (DbFile) entry.getValue();
-            if(value.getId() == id){
+            int value = (Integer) entry.getValue();
+            if(value == id){
                 return name;
             }
         }

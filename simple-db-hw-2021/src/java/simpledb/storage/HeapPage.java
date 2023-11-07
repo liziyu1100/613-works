@@ -354,10 +354,10 @@ public class HeapPage implements Page {
         int pos_bit = i%8;
         byte b = this.header[pos_byte];
         byte c = 1;
+        c = (byte) ((c << pos_bit)|b);
         if (value == false){
-            c=0;
+            c = (byte) (~(1 << pos_bit)&b);
         }
-        c = (byte) (((c << pos_bit)&0XFF)|b);
         this.header[pos_byte] = c;
         if (value == false)this.used_slots = this.used_slots - 1;
         else{

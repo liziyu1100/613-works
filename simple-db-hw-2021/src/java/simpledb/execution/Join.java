@@ -47,6 +47,8 @@ public class Join extends Operator {
     public List<Tuple> init_it(){
         List<Tuple> result = new ArrayList<>();
         try {
+            this.child1.open();
+            this.child2.open();
             while(this.child1.hasNext()){
                 Tuple tp1 = this.child1.next();
                 this.child2.rewind();
@@ -58,6 +60,8 @@ public class Join extends Operator {
                     }
                 }
             }
+            this.child1.close();
+            this.child2.close();
         }catch (Exception e){
             e.printStackTrace();
         }
