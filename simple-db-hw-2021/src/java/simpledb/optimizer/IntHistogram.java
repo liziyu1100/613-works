@@ -14,6 +14,7 @@ public class IntHistogram {
     private int min_;
     private int max_;
     private int ntups;
+    private int avg_w;
     /**
      * Create a new IntHistogram.
      * 
@@ -39,6 +40,10 @@ public class IntHistogram {
         min_ = min;
         max_ = max;
         ntups = 0;
+        if (rate<1.0)avg_w = 1;
+        else{
+            avg_w = (int)rate;
+        }
     }
 
     /**
@@ -65,12 +70,23 @@ public class IntHistogram {
     public double estimateSelectivity(Predicate.Op op, int v) {
 
     	// some code goes here
+        if (v>max_)v=max_;
+        else if (v<min_)v=min_;
         int index = (int) ((v-min_)*1.0/rate);
         int h = bucket[index];
         double selectivity = -1.0;
-        int avg_w = (int)rate+1;
         if (op == Predicate.Op.EQUALS){
             selectivity = (h*1.0/avg_w*1.0)/ntups;
+        }
+        else if (op == Predicate.Op.GREATER_THAN){
+            double b_f = h*1.0/ntups*1.0;
+            double right = (index+1)*(rate)+min_*1.0;
+            if (right>max_)right=max_;
+            double b_part = (right-v)/avg_w;
+            selectivity = b_f*b_part;
+            for (int i=index+1;i<bucket.length;i++){
+                selectivity = selectivity + bucket[i]*1.0/ntups*1.0;
+            }
         }
         return selectivity;
     }
