@@ -22,6 +22,8 @@ import simpledb.storage.TupleDesc;
 import simpledb.transaction.Transaction;
 import simpledb.transaction.TransactionId;
 
+import javax.smartcardio.TerminalFactory;
+
 public class Parser {
     static boolean explain = false;
 

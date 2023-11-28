@@ -2,10 +2,18 @@ package simpledb.optimizer;
 
 import simpledb.execution.Predicate;
 
+import java.util.Arrays;
+
 /** A class to represent a fixed-width histogram over a single integer-based field.
  */
 public class IntHistogram {
 
+
+    private int[]bucket;
+    private double rate;
+    private int min_;
+    private int max_;
+    private int ntups;
     /**
      * Create a new IntHistogram.
      * 
@@ -22,8 +30,15 @@ public class IntHistogram {
      * @param min The minimum integer value that will ever be passed to this class for histogramming
      * @param max The maximum integer value that will ever be passed to this class for histogramming
      */
+
     public IntHistogram(int buckets, int min, int max) {
     	// some code goes here
+        bucket = new int[buckets];
+        Arrays.fill(bucket,0);
+        rate = (max-min+1)*1.0/buckets;
+        min_ = min;
+        max_ = max;
+        ntups = 0;
     }
 
     /**
@@ -32,6 +47,9 @@ public class IntHistogram {
      */
     public void addValue(int v) {
     	// some code goes here
+        int index = (int) ((v-min_)*1.0/rate);
+        bucket[index] = bucket[index] + 1;
+        ntups = ntups +1;
     }
 
     /**
@@ -47,7 +65,14 @@ public class IntHistogram {
     public double estimateSelectivity(Predicate.Op op, int v) {
 
     	// some code goes here
-        return -1.0;
+        int index = (int) ((v-min_)*1.0/rate);
+        int h = bucket[index];
+        double selectivity = -1.0;
+        int avg_w = (int)rate+1;
+        if (op == Predicate.Op.EQUALS){
+            selectivity = (h*1.0/avg_w*1.0)/ntups;
+        }
+        return selectivity;
     }
     
     /**
