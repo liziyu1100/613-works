@@ -6,10 +6,10 @@ import simpledb.execution.Predicate;
 import simpledb.execution.SeqScan;
 import simpledb.storage.*;
 import simpledb.transaction.Transaction;
+import simpledb.transaction.TransactionId;
 
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
+import javax.xml.crypto.Data;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -67,7 +67,11 @@ public class TableStats {
      * histograms.
      */
     static final int NUM_HIST_BINS = 100;
-
+    private int []maxs;
+    private int []mins;
+    private int ntups;
+    private int iocost;
+    private HeapFile dbFile;
     /**
      * Create a new TableStats object, that keeps track of statistics on each
      * column of a table
@@ -87,6 +91,38 @@ public class TableStats {
         // necessarily have to (for example) do everything
         // in a single scan of the table.
         // some code goes here
+        iocost = ioCostPerPage;
+        dbFile = (HeapFile) Database.getCatalog().getDatabaseFile(tableid);
+        mins = new int[dbFile.getTupleDesc().numFields()];
+        maxs = new int[dbFile.getTupleDesc().numFields()];
+        List<Integer> int_index = new ArrayList<>();
+        for (int i=0;i<dbFile.getTupleDesc().numFields();i++){
+            if (dbFile.getTupleDesc().getFieldType(i)==Type.INT_TYPE){
+                int_index.add(i);
+            }
+        }
+        Arrays.fill(mins,Integer.MAX_VALUE);
+        Arrays.fill(maxs,Integer.MIN_VALUE);
+        ntups = 0;
+        DbFileIterator it = dbFile.iterator(new TransactionId());
+        try {
+            it.open();
+            while(it.hasNext()){
+                ntups = ntups + 1;
+                Tuple tuple = it.next();
+                for (int i=0;i<int_index.size();i++){
+                    int index = int_index.get(i);
+                    IntField value = (IntField) tuple.getField(index);
+                    mins[index] = Math.min(mins[index],value.getValue());
+                    maxs[index] = Math.max(maxs[index],value.getValue());
+                }
+            }
+        }catch (Exception e){
+            e.printStackTrace();
+        }
+
+
+
     }
 
     /**
@@ -103,7 +139,7 @@ public class TableStats {
      */
     public double estimateScanCost() {
         // some code goes here
-        return 0;
+        return dbFile.numPages()*this.iocost;
     }
 
     /**
@@ -117,7 +153,7 @@ public class TableStats {
      */
     public int estimateTableCardinality(double selectivityFactor) {
         // some code goes here
-        return 0;
+        return (int) (this.ntups*selectivityFactor);
     }
 
     /**
