@@ -36,13 +36,16 @@ public class IntHistogram {
     	// some code goes here
         bucket = new int[buckets];
         Arrays.fill(bucket,0);
-        rate = (max-min+1)*1.0/buckets;
+        rate = (max-min)*1.0/buckets;
         min_ = min;
         max_ = max;
         ntups = 0;
-        if (rate<1.0)avg_w = 1;
+        if (rate<1.0)avg_w = 1; //如果桶的宽度最小置为1，因为一个范围内最少可以放下一个元素。
         else{
             avg_w = (int)rate;
+            if (rate - avg_w*1.0>0.000001){
+                avg_w = avg_w+1;
+            }
         }
     }
 
@@ -52,7 +55,9 @@ public class IntHistogram {
      */
     public void addValue(int v) {
     	// some code goes here
+        double mid = (v-min_)*1.0/rate;
         int index = (int) ((v-min_)*1.0/rate);
+        if (index == bucket.length)index = bucket.length-1;
         bucket[index] = bucket[index] + 1;
         ntups = ntups +1;
     }
@@ -70,39 +75,47 @@ public class IntHistogram {
     public double estimateSelectivity(Predicate.Op op, int v) {
 
     	// some code goes here
+        int old_v = v;
         if (v>max_)v=max_;
         else if (v<min_)v=min_;
         int index = (int) ((v-min_)*1.0/rate);
+        if (index == bucket.length)index=bucket.length-1;
         int h = bucket[index];
         double selectivity = -1.0;
         if (op == Predicate.Op.EQUALS){
-            selectivity = (h*1.0/avg_w*1.0)/ntups;
+            if (old_v<min_||old_v>max_)selectivity = 0;
+            else{
+                selectivity = (h*1.0/avg_w*1.0)/ntups;
+            }
         }
         else if (op == Predicate.Op.GREATER_THAN){
             double b_f = h*1.0/ntups*1.0;
-            double right = (index)*(rate)+min_*1.0+(rate-1);
+            double right = (index+1)*(rate)+min_*1.0;
             if (right>max_)right=max_;
-            double b_part = (right-v)/avg_w;
+            double b_part = (right-v)/rate;
             selectivity = b_f*b_part;
             for (int i=index+1;i<bucket.length;i++){
                 selectivity = selectivity + bucket[i]*1.0/ntups*1.0;
             }
         }
         else if (op == Predicate.Op.GREATER_THAN_OR_EQ){
-            selectivity = estimateSelectivity(Predicate.Op.GREATER_THAN,v)+estimateSelectivity(Predicate.Op.EQUALS,v);
+            selectivity = estimateSelectivity(Predicate.Op.GREATER_THAN,old_v)+estimateSelectivity(Predicate.Op.EQUALS,old_v);
         }
         else if (op == Predicate.Op.LESS_THAN){
             double b_f = h*1.0/ntups*1.0;
             double left = (index)*(rate)+min_*1.0;
             if (left<min_)left=min_;
-            double b_part = (v-left)/avg_w;
+            double b_part = (v-left)/rate;
             selectivity = b_f*b_part;
             for (int i=index-1;i>=0;i--){
                 selectivity = selectivity + bucket[i]*1.0/ntups*1.0;
             }
         }
         else if (op == Predicate.Op.LESS_THAN_OR_EQ){
-            selectivity = estimateSelectivity(Predicate.Op.LESS_THAN,v)+estimateSelectivity(Predicate.Op.EQUALS,v);
+            selectivity = estimateSelectivity(Predicate.Op.LESS_THAN,old_v)+estimateSelectivity(Predicate.Op.EQUALS,old_v);
+        }
+        else if (op == Predicate.Op.NOT_EQUALS){
+            selectivity = 1 - estimateSelectivity(Predicate.Op.EQUALS,old_v);
         }
         return selectivity;
     }
