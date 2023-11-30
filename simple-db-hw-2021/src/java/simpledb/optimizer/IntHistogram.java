@@ -80,13 +80,29 @@ public class IntHistogram {
         }
         else if (op == Predicate.Op.GREATER_THAN){
             double b_f = h*1.0/ntups*1.0;
-            double right = (index+1)*(rate)+min_*1.0;
+            double right = (index)*(rate)+min_*1.0+(rate-1);
             if (right>max_)right=max_;
             double b_part = (right-v)/avg_w;
             selectivity = b_f*b_part;
             for (int i=index+1;i<bucket.length;i++){
                 selectivity = selectivity + bucket[i]*1.0/ntups*1.0;
             }
+        }
+        else if (op == Predicate.Op.GREATER_THAN_OR_EQ){
+            selectivity = estimateSelectivity(Predicate.Op.GREATER_THAN,v)+estimateSelectivity(Predicate.Op.EQUALS,v);
+        }
+        else if (op == Predicate.Op.LESS_THAN){
+            double b_f = h*1.0/ntups*1.0;
+            double left = (index)*(rate)+min_*1.0;
+            if (left<min_)left=min_;
+            double b_part = (v-left)/avg_w;
+            selectivity = b_f*b_part;
+            for (int i=index-1;i>=0;i--){
+                selectivity = selectivity + bucket[i]*1.0/ntups*1.0;
+            }
+        }
+        else if (op == Predicate.Op.LESS_THAN_OR_EQ){
+            selectivity = estimateSelectivity(Predicate.Op.LESS_THAN,v)+estimateSelectivity(Predicate.Op.EQUALS,v);
         }
         return selectivity;
     }
