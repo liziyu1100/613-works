@@ -76,8 +76,8 @@ public class IntHistogram {
 
     	// some code goes here
         int old_v = v;
-        if (v>max_)v=max_;
-        else if (v<min_)v=min_;
+        if (v>max_){v=max_;}
+        else if (v<min_){v=min_;}
         int index = (int) ((v-min_)*1.0/rate);
         if (index == bucket.length)index=bucket.length-1;
         int h = bucket[index];
@@ -89,11 +89,16 @@ public class IntHistogram {
             }
         }
         else if (op == Predicate.Op.GREATER_THAN){
-            double b_f = h*1.0/ntups*1.0;
-            double right = (index+1)*(rate)+min_*1.0;
-            if (right>max_)right=max_;
-            double b_part = (right-v)/rate;
-            selectivity = b_f*b_part;
+            if (avg_w >1 || old_v<min_){
+                double b_f = h*1.0/ntups*1.0;
+                double right = (index+1)*(rate)+min_*1.0;
+                if (right>max_)right=max_;
+                double b_part = (right-v)/rate;
+                selectivity = b_f*b_part;
+            }
+            else{
+                selectivity = 0;
+            }
             for (int i=index+1;i<bucket.length;i++){
                 selectivity = selectivity + bucket[i]*1.0/ntups*1.0;
             }
@@ -102,11 +107,16 @@ public class IntHistogram {
             selectivity = estimateSelectivity(Predicate.Op.GREATER_THAN,old_v)+estimateSelectivity(Predicate.Op.EQUALS,old_v);
         }
         else if (op == Predicate.Op.LESS_THAN){
-            double b_f = h*1.0/ntups*1.0;
-            double left = (index)*(rate)+min_*1.0;
-            if (left<min_)left=min_;
-            double b_part = (v-left)/rate;
-            selectivity = b_f*b_part;
+            if (avg_w >1 || old_v>max_){
+                double b_f = h*1.0/ntups*1.0;
+                double left = (index)*(rate)+min_*1.0;
+                if (left<min_)left=min_;
+                double b_part = (v-left)/rate;
+                selectivity = b_f*b_part;
+            }
+            else{
+                selectivity = 0;
+            }
             for (int i=index-1;i>=0;i--){
                 selectivity = selectivity + bucket[i]*1.0/ntups*1.0;
             }

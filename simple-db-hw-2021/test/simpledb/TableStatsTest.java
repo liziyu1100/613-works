@@ -150,7 +150,9 @@ public class TableStatsTest extends SimpleDbTestBase {
 			Assert.assertEquals(0.0, s.estimateSelectivity(col, Predicate.Op.GREATER_THAN_OR_EQ, aboveMax), 0.001);
 			Assert.assertEquals(0.0, s.estimateSelectivity(col, Predicate.Op.GREATER_THAN_OR_EQ, atMax), 0.015);
 			Assert.assertEquals(0.5, s.estimateSelectivity(col, Predicate.Op.GREATER_THAN_OR_EQ, halfMaxMin), 0.1);
-			Assert.assertEquals(1.0, s.estimateSelectivity(col, Predicate.Op.GREATER_THAN_OR_EQ, atMin), 0.015);
+			Assert.assertEquals(1.0,
+					s.estimateSelectivity(col, Predicate.Op.GREATER_THAN_OR_EQ, atMin),
+					0.015);
 			Assert.assertEquals(1.0, s.estimateSelectivity(col, Predicate.Op.GREATER_THAN_OR_EQ, belowMin), 0.001);
 			
 			Assert.assertEquals(1.0, s.estimateSelectivity(col, Predicate.Op.LESS_THAN_OR_EQ, aboveMax), 0.001);

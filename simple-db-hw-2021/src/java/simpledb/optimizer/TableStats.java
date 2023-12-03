@@ -186,7 +186,22 @@ public class TableStats {
      */
     public double estimateSelectivity(int field, Predicate.Op op, Field constant) {
         // some code goes here
-        return 1.0;
+        IntHistogram intHistogram = new IntHistogram(100,this.mins[field],this.maxs[field]);
+        DbFileIterator it = dbFile.iterator(new TransactionId());
+        try {
+            it.open();
+            while (it.hasNext()){
+                Tuple tuple = it.next();
+                IntField temp = (IntField) tuple.getField(field);
+                intHistogram.addValue(temp.getValue());
+            }
+        }catch (Exception e){
+            e.printStackTrace();
+        }
+        if (op == Predicate.Op.GREATER_THAN_OR_EQ && ((IntField)constant).getValue()==0){
+            int a =1;
+        }
+        return intHistogram.estimateSelectivity(op,((IntField)constant).getValue());
     }
 
     /**
