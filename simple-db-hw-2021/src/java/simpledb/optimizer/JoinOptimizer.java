@@ -258,7 +258,25 @@ public class JoinOptimizer {
         // some code goes here
         //Replace the following
         List<LogicalJoinNode>result = new ArrayList<>();
+        Set<Set<LogicalJoinNode>> mid =null;
 
+        for (int i =1;i<=joins.size();i++){
+            Set<Set<LogicalJoinNode>> ss = enumerateSubsets(this.joins,i);
+            mid = ss;
+            Iterator<Set<LogicalJoinNode>> iterator = ss.iterator();
+            LogicalPlan bestplan = new LogicalPlan();
+            while (iterator.hasNext()){
+                Set<LogicalJoinNode> s = iterator.next();
+                Iterator<Set<LogicalJoinNode>> it2 = mid.iterator();
+                while (it2.hasNext()){
+                    Set<LogicalJoinNode> s1= it2.next();
+                    //LogicalPlan sub = optjoin(s1);
+                    Set<LogicalJoinNode> temp1;
+
+                }
+            }
+
+        }
         return joins;
     }
 
