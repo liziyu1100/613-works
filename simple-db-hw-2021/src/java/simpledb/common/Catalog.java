@@ -133,7 +133,7 @@ public class Catalog {
 
     public String getPrimaryKey(int tableid) {
         // some code goes here
-        return null;
+        return pkeys.get(tableid);
     }
 
     public Iterator<Integer> tableIdIterator() {

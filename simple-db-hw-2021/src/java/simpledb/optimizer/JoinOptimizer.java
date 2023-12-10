@@ -260,41 +260,31 @@ public class JoinOptimizer {
         // some code goes here
         //Replace the following
 
-        Set<Set<LogicalJoinNode>> mid =null;
-        Map<Set<LogicalJoinNode>,CostCard>the_last = new HashMap<>();
+        PlanCache pc = new PlanCache();
         for (int i =1;i<=joins.size();i++){
             Set<Set<LogicalJoinNode>> ss = enumerateSubsets(this.joins,i);
             Iterator<Set<LogicalJoinNode>> iterator = ss.iterator();
             while (iterator.hasNext()){
-                if (ss.size()==1){
-                    CostCard cc = new CostCard();
-                    LogicalJoinNode ccj = iterator.next().iterator().next();
-                    TableStats stats1 = stats.get(ccj.t1Alias);
-                    TableStats stats2 = stats.get(ccj.t2Alias);
-                    cc.cost = estimateJoinCost(ccj,stats1.estimateTableCardinality(1.0),stats2.estimateTableCardinality(1.0),stats1.estimateScanCost(),stats2.estimateScanCost());
-                    List<LogicalJoinNode>plan = new ArrayList<>();
-                    plan.add(ccj);
-                    cc.plan = plan;
-                    the_last.put(iterator.next(),cc);
-                }
-                else{
-                    Set<LogicalJoinNode>s = iterator.next();
-                    Set<Set<LogicalJoinNode>> ss2 = enumerateSubsets(s.stream().collect(Collectors.toList()), s.size()-1);
-                    Iterator<Set<LogicalJoinNode>>iterator2 = ss2.iterator();
-                    double bestcost = Double.MAX_VALUE;
-                    while (iterator2.hasNext()){
-                        Set<LogicalJoinNode>s_ = iterator2.next();
-                        Set<LogicalJoinNode> sub = new HashSet<>();
-                        sub.addAll(s);
-                        sub.removeAll(s_);
-                        //CostCard costCard = computeCostAndCardOfSubplan(stats,filterSelectivities,sub.iterator().next(),s_,bestcost,)
+                Set<LogicalJoinNode> s = iterator.next();
+                Set<Set<LogicalJoinNode>> ss2 = enumerateSubsets(new ArrayList<>(s), s.size()-1);
+                Iterator<Set<LogicalJoinNode>>iterator2 = ss2.iterator();
+                double bestcost = Double.MAX_VALUE;
+                while (iterator2.hasNext()){
+                    Set<LogicalJoinNode>s_ = iterator2.next();
+                    Set<LogicalJoinNode> sub = new HashSet<>();
+                    sub.addAll(s);
+                    sub.removeAll(s_);
+                    CostCard plan = computeCostAndCardOfSubplan(stats,filterSelectivities,sub.iterator().next(),s,bestcost,pc);
+                    if (plan == null)continue;
+                    else{
+                        bestcost = plan.cost;
+                        pc.addPlan(s,plan.cost, plan.card, plan.plan);
                     }
                 }
             }
-
-
         }
-        return joins;
+
+        return pc.getOrder(new HashSet<>(this.joins));
     }
 
     // ===================== Private Methods =================================
