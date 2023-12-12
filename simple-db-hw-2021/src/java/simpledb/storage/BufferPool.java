@@ -12,6 +12,7 @@ import java.io.*;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  * BufferPool manages the reading and writing of pages into memory from
@@ -25,6 +26,35 @@ import java.util.concurrent.ConcurrentHashMap;
  * @Threadsafe, all fields are final
  */
 public class BufferPool {
+    public class PageLock {
+        // 创建读写锁
+        private final ReentrantReadWriteLock readWriteLock = new ReentrantReadWriteLock();
+        // 获得读锁
+        private final ReentrantReadWriteLock.ReadLock readLock = readWriteLock.readLock();
+        // 获得写锁
+        private final ReentrantReadWriteLock.WriteLock writeLock = readWriteLock.writeLock();
+        private Map<TransactionId,Permissions>lock_type;
+        public PageLock(){
+            lock_type = new HashMap<>();
+        }
+        public void lock_read(TransactionId tid){
+            readLock.lock();
+            lock_type.put(tid,Permissions.READ_ONLY);
+        }
+        public void unlock_read(TransactionId tid){
+            readLock.unlock();
+            lock_type.remove(tid,Permissions.READ_ONLY);
+        }
+        public void lock_write(TransactionId tid){
+            writeLock.lock();
+            lock_type.put(tid,Permissions.READ_WRITE);
+        }
+        public void unlock_write(TransactionId tid){
+            writeLock.unlock();
+            lock_type.remove(tid,Permissions.READ_WRITE);
+        }
+
+    }
     /** Bytes per page, including header. */
     private static final int DEFAULT_PAGE_SIZE = 4096;
 
@@ -35,6 +65,7 @@ public class BufferPool {
     constructor instead. */
     public static final int DEFAULT_PAGES = 50;
     private HeapPage[] pages;
+    private PageLock[] locks;
     private int rest_num;
     private LinkedHashMap<HeapPageId,Integer> page_q;
     /**
@@ -45,6 +76,7 @@ public class BufferPool {
     public BufferPool(int numPages) {
         // some code goes here
         this.pages = new HeapPage[numPages];
+        this.locks = new PageLock[numPages];
         this.rest_num = numPages;
         this.page_q = new LinkedHashMap<>();
     }
@@ -85,6 +117,12 @@ public class BufferPool {
         for (int i = 0;i<pages.length;i++){
             if (pages[i]!=null){
                 if (pages[i].getId().equals(pid)){
+                    if (perm == Permissions.READ_ONLY){
+                        locks[i].lock_read(tid);
+                    }
+                    else if (perm == Permissions.READ_WRITE){
+                        locks[i].lock_write(tid);
+                    }
                     return pages[i];
                 }
             }
@@ -156,6 +194,7 @@ public class BufferPool {
     public boolean holdsLock(TransactionId tid, PageId p) {
         // some code goes here
         // not necessary for lab1|lab2
+
         return false;
     }
 
