@@ -26,34 +26,70 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  * @Threadsafe, all fields are final
  */
 public class BufferPool {
-    public class PageLock {
-        // 创建读写锁
-        private final ReentrantReadWriteLock readWriteLock = new ReentrantReadWriteLock();
-        // 获得读锁
-        private final ReentrantReadWriteLock.ReadLock readLock = readWriteLock.readLock();
-        // 获得写锁
-        private final ReentrantReadWriteLock.WriteLock writeLock = readWriteLock.writeLock();
-        private Map<TransactionId,Permissions>lock_type;
-        public PageLock(){
-            lock_type = new HashMap<>();
-        }
-        public void lock_read(TransactionId tid){
-            readLock.lock();
-            lock_type.put(tid,Permissions.READ_ONLY);
-        }
-        public void unlock_read(TransactionId tid){
-            readLock.unlock();
-            lock_type.remove(tid,Permissions.READ_ONLY);
-        }
-        public void lock_write(TransactionId tid){
-            writeLock.lock();
-            lock_type.put(tid,Permissions.READ_WRITE);
-        }
-        public void unlock_write(TransactionId tid){
-            writeLock.unlock();
-            lock_type.remove(tid,Permissions.READ_WRITE);
-        }
 
+    public class Tranlock{
+        private Set<TransactionId>sh_locks;
+        private TransactionId ex_lock;
+        private Object read_lock = new Object();
+        private Object write_lock = new Object();
+        public Tranlock(){
+            sh_locks = new HashSet<>();
+            ex_lock = null;
+        }
+        public void lock(TransactionId tid,Permissions perm) throws InterruptedException {
+                if (perm == Permissions.READ_ONLY){
+                    synchronized (write_lock){
+                        if (ex_lock != null && ex_lock != tid) {
+                            write_lock.wait();
+                        }
+                        sh_locks.add(tid);
+                    }
+                }
+
+                if (perm == Permissions.READ_WRITE){
+                    if (sh_locks.size()>=1){
+                        synchronized (read_lock){
+                            if (sh_locks.size() == 1){
+                                if (sh_locks.contains(tid)){
+                                    sh_locks.remove(tid);
+                                }
+                                else{
+                                    read_lock.wait();
+                                }
+                            }
+                            else if (sh_locks.size() > 1){
+                                read_lock.wait();
+                            }
+                            ex_lock = tid;
+                        }
+                    }
+                    else{
+                        synchronized (write_lock){
+                            if (ex_lock!=null && ex_lock!=tid)write_lock.wait();
+                            ex_lock = tid;
+                        }
+                    }
+                }
+        }
+        public void unlock(TransactionId tid){
+            if (ex_lock == tid){
+                synchronized (write_lock){
+                    ex_lock = null;
+                    write_lock.notify();
+                }
+            }
+            else{
+                synchronized (read_lock){
+                    if (sh_locks.remove(tid)){
+                        read_lock.notify();
+                    }
+                }
+            }
+        }
+        public boolean islocked(){
+            if (ex_lock != null || sh_locks.size()>0)return true;
+            return false;
+        }
     }
     /** Bytes per page, including header. */
     private static final int DEFAULT_PAGE_SIZE = 4096;
@@ -65,9 +101,10 @@ public class BufferPool {
     constructor instead. */
     public static final int DEFAULT_PAGES = 50;
     private HeapPage[] pages;
-    private PageLock[] locks;
+    private Tranlock[] locks;
     private int rest_num;
     private LinkedHashMap<HeapPageId,Integer> page_q;
+    private Object add_lock = new Object();
     /**
      * Creates a BufferPool that caches up to numPages pages.
      *
@@ -76,7 +113,7 @@ public class BufferPool {
     public BufferPool(int numPages) {
         // some code goes here
         this.pages = new HeapPage[numPages];
-        this.locks = new PageLock[numPages];
+        this.locks = new Tranlock[numPages];
         this.rest_num = numPages;
         this.page_q = new LinkedHashMap<>();
     }
@@ -116,42 +153,59 @@ public class BufferPool {
         int visit_rest = DEFAULT_PAGES - rest_num;
         for (int i = 0;i<pages.length;i++){
             if (pages[i]!=null){
+                visit_rest = visit_rest - 1;
                 if (pages[i].getId().equals(pid)){
-                    if (perm == Permissions.READ_ONLY){
-                        locks[i].lock_read(tid);
-                    }
-                    else if (perm == Permissions.READ_WRITE){
-                        locks[i].lock_write(tid);
+                    try {
+                        locks[i].lock(tid,perm);
+                    }catch (Exception e){
+                        e.printStackTrace();
                     }
                     return pages[i];
                 }
             }
             if (visit_rest == 0)break;
         }
+
         HeapPage nhp = (HeapPage) Database.getCatalog().getDatabaseFile(pid.getTableId()).readPage(pid);
         if (nhp != null){
-            this.addPage(tid,nhp);
+            synchronized (add_lock){
+                int i = this.addPage(tid,nhp);
+                if (i == -1){  // already added by other tran
+                    return getPage(tid, pid, perm);
+                }
+                else{
+                    try {
+                        locks[i].lock(tid,perm);
+                    }catch (Exception e){
+                        e.printStackTrace();
+                    }
+                }
+            }
             return nhp;
         }
         return null;
     }
-    public void addPage(TransactionId tid,Page page ){
-        for (int i = 0;i<this.pages.length;i++){
-            if (this.pages[i]!=null){
-                if (this.pages[i].getId().equals(page.getId())){
-                    this.pages[i] = (HeapPage) page;
-                    page_q.get(pages[i].getId());
-                    return;
-                }
-            }
-        }
+
+    public int addPage(TransactionId tid,Page page ){
+//        for (int i = 0;i<this.pages.length;i++){
+//            if (this.pages[i]!=null){
+//                if (this.pages[i].getId().equals(page.getId())){
+//                    this.pages[i] = (HeapPage) page;
+//                    this.locks[i] = new PageLock();
+//                    page_q.get(pages[i].getId());
+//                    return;
+//                }
+//            }
+//        }
+        if (page_q.get(page.getId())!=null)return -1;
         if (this.rest_num>0){
             for (int i = 0;i<this.pages.length;i++){
                 if (this.pages[i]==null){
                     this.pages[i]= (HeapPage) page;
+                    this.locks[i] = new Tranlock();
                     this.rest_num = this.rest_num-1;
-                    page_q.put(pages[i].getId(),1);
-                    return;
+                    page_q.put(pages[i].getId(),i);
+                    return i;
                 }
             }
         }
@@ -161,8 +215,9 @@ public class BufferPool {
             }catch (Exception e){
                 e.printStackTrace();
             }
-            addPage(tid,page);
+           return addPage(tid,page);
         }
+        return -1;
 
     }
 
@@ -178,6 +233,17 @@ public class BufferPool {
     public  void unsafeReleasePage(TransactionId tid, PageId pid) {
         // some code goes here
         // not necessary for lab1|lab2
+        int visit_rest = DEFAULT_PAGES - rest_num;
+        for (int i = 0;i<pages.length;i++){
+            if (pages[i]!=null){
+                visit_rest = visit_rest - 1;
+                if (pages[i].getId().equals(pid)){
+                    locks[i].unlock(tid);
+                }
+            }
+            if (visit_rest == 0)break;
+        }
+
     }
 
     /**
@@ -245,9 +311,9 @@ public class BufferPool {
 //        }
         DbFile hdf = Database.getCatalog().getDatabaseFile(tableId);
         List<Page> dtp =  hdf.insertTuple(tid,t);
-        for (int i =0;i<dtp.size();i++){
-            this.addPage(tid,dtp.get(i));
-        }
+//        for (int i =0;i<dtp.size();i++){
+//            this.addPage(tid,dtp.get(i));
+//        }
     }
 
     /**
@@ -345,9 +411,12 @@ public class BufferPool {
         // some code goes here
         // not necessary for lab1
         HeapPageId key = null;
+        int value = -1;
         for (Map.Entry<HeapPageId, Integer> mapElement : page_q.entrySet()) {
             // 获取键
             key = mapElement.getKey();
+            value = mapElement.getValue();
+            if (locks[value].islocked())continue;
             page_q.remove(key);
             break;
         }

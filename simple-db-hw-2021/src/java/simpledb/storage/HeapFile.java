@@ -94,7 +94,6 @@ public class HeapFile implements DbFile {
             }
             HeapPage hp = new HeapPage((HeapPageId) pid,resultBytes);
             return hp;
-
         }catch (IOException e) {
             e.printStackTrace();
             return null;
@@ -145,17 +144,20 @@ public class HeapFile implements DbFile {
                 if (hp1.getNumEmptySlots()==0)continue;
                 hp1.insertTuple(t);
                 hp1.markDirty(true,tid);
+                Database.getBufferPool().unsafeReleasePage(tid,hp1.getId());
                 dtp.add(hp1);
                 return dtp;
             }
         }
-        byte [] data = new byte[BufferPool.getPageSize()];
-        Arrays.fill(data, (byte) 0);
+//        byte [] data = new byte[BufferPool.getPageSize()];
+//        Arrays.fill(data, (byte) 0);
         HeapPage nhp = (HeapPage) Database.getBufferPool().getPage(tid,new HeapPageId(this.getId(),this.numPages()),Permissions.READ_WRITE);
         nhp.insertTuple(t);
         //nhp.markDirty(true,tid);
+        Database.getBufferPool().unsafeReleasePage(tid,nhp.getId());
         dtp.add(nhp);
         this.writePage(nhp);
+
         return dtp;
         // not necessary for lab1
     }
@@ -171,6 +173,7 @@ public class HeapFile implements DbFile {
         HeapPage hp = (HeapPage) Database.getBufferPool().getPage(tid,heapPageId,Permissions.READ_WRITE);
         hp.deleteTuple(t);
         hp.markDirty(true,tid);
+        Database.getBufferPool().unsafeReleasePage(tid,hp.getId());
         dtp.add(hp);
         return dtp;
 
