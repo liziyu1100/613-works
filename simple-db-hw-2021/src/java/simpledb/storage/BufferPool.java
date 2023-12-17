@@ -105,6 +105,8 @@ public class BufferPool {
     private int rest_num;
     private LinkedHashMap<HeapPageId,Integer> page_q;
     private Object add_lock = new Object();
+    private Map<TransactionId,List<Tranlock>>tran_rec;
+    private Object rec_lock = new Object();
     /**
      * Creates a BufferPool that caches up to numPages pages.
      *
@@ -116,6 +118,7 @@ public class BufferPool {
         this.locks = new Tranlock[numPages];
         this.rest_num = numPages;
         this.page_q = new LinkedHashMap<>();
+        this.tran_rec = new HashMap<>();
     }
     
     public static int getPageSize() {
@@ -160,6 +163,17 @@ public class BufferPool {
                     }catch (Exception e){
                         e.printStackTrace();
                     }
+                    synchronized (rec_lock){
+                        if (tran_rec.get(tid)==null){
+                            List<Tranlock>temp = new ArrayList<>();
+                            temp.add(locks[i]);
+                            tran_rec.put(tid,temp);
+                        }
+                        else{
+                            List<Tranlock>temp = tran_rec.get(tid);
+                            temp.add(locks[i]);
+                        }
+                    }
                     return pages[i];
                 }
             }
@@ -187,16 +201,7 @@ public class BufferPool {
     }
 
     public int addPage(TransactionId tid,Page page ){
-//        for (int i = 0;i<this.pages.length;i++){
-//            if (this.pages[i]!=null){
-//                if (this.pages[i].getId().equals(page.getId())){
-//                    this.pages[i] = (HeapPage) page;
-//                    this.locks[i] = new PageLock();
-//                    page_q.get(pages[i].getId());
-//                    return;
-//                }
-//            }
-//        }
+
         if (page_q.get(page.getId())!=null)return -1;
         if (this.rest_num>0){
             for (int i = 0;i<this.pages.length;i++){
@@ -254,6 +259,11 @@ public class BufferPool {
     public void transactionComplete(TransactionId tid) {
         // some code goes here
         // not necessary for lab1|lab2
+        List<Tranlock>list = tran_rec.get(tid);
+        for (int i =0;i<list.size();i++){
+            Tranlock tranlock = list.get(i);
+            tranlock.unlock(tid);
+        }
     }
 
     /** Return true if the specified transaction has a lock on the specified page */
@@ -411,25 +421,22 @@ public class BufferPool {
         // some code goes here
         // not necessary for lab1
         HeapPageId key = null;
+        boolean sign = false;
         int value = -1;
         for (Map.Entry<HeapPageId, Integer> mapElement : page_q.entrySet()) {
             // 获取键
             key = mapElement.getKey();
             value = mapElement.getValue();
-            if (locks[value].islocked())continue;
+            if (pages[value].isDirty()!=null)continue;
+            sign = true;
             page_q.remove(key);
             break;
         }
+        if (sign = false)throw new DbException("all dirty pages");
         for (int i = 0;i<pages.length;i++){
             if (pages[i].getId().equals(key)){
-                if (pages[i].isDirty() != null){
-                    try {
-                        flushPage(key);
-                    }catch (Exception e){
-                        e.printStackTrace();
-                    }
-                }
                 pages[i] = null;
+                locks[i] = null;
                 rest_num = rest_num + 1;
             }
         }

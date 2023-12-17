@@ -10,22 +10,21 @@ import simpledb.storage.TupleDesc;
 import simpledb.transaction.TransactionId;
 
 import java.io.File;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 
 public class Test {
     public static void main(String[] args) {
         // construct a 3-column table schema
-        Set<Integer> a = new HashSet<>();
-        boolean as = a.add(5);
-        as = a.add(4);
-        Set<Integer> b = new HashSet<>();
-        boolean bs = b.add(4);
-        bs = b.add(5);
-        Set<Set<Integer>>ab = new HashSet<>();
-        boolean abs = ab.add(a);
-        abs = ab.add(b);
-        System.out.println(111);
+        Map<String, List<Integer>>test = new HashMap<>();
+        List<Integer>temp = new ArrayList<>();
+        List<Integer>list = new ArrayList<>();
+        list.add(5);
+        test.put("test2",list);
+        temp.add(1);
+        test.put("test",temp);
+        List<Integer>temp2 = test.get("test");
+        temp2.add(3);
+        System.out.println(test);
     }
     public static void OperatorTest(){
         Type types[] = new Type[]{Type.INT_TYPE, Type.INT_TYPE};
