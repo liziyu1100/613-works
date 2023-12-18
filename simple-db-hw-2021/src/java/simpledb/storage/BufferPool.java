@@ -106,6 +106,7 @@ public class BufferPool {
     private LinkedHashMap<HeapPageId,Integer> page_q;
     private Object add_lock = new Object();
     private Map<TransactionId,List<Tranlock>>tran_rec;
+    private Map<TransactionId,List<HeapPage>>tran_rec_page;
     private Object rec_lock = new Object();
     /**
      * Creates a BufferPool that caches up to numPages pages.
@@ -119,6 +120,7 @@ public class BufferPool {
         this.rest_num = numPages;
         this.page_q = new LinkedHashMap<>();
         this.tran_rec = new HashMap<>();
+        this.tran_rec_page = new HashMap<>();
     }
     
     public static int getPageSize() {
@@ -168,10 +170,15 @@ public class BufferPool {
                             List<Tranlock>temp = new ArrayList<>();
                             temp.add(locks[i]);
                             tran_rec.put(tid,temp);
+                            List<HeapPage>temp2 = new ArrayList<>();
+                            temp2.add(pages[i]);
+                            tran_rec_page.put(tid,temp2);
                         }
                         else{
                             List<Tranlock>temp = tran_rec.get(tid);
                             temp.add(locks[i]);
+                            List<HeapPage>temp2 = tran_rec_page.get(tid);
+                            temp2.add(pages[i]);
                         }
                     }
                     return pages[i];
@@ -195,7 +202,7 @@ public class BufferPool {
                     }
                 }
             }
-            return nhp;
+            return getPage(tid,pid,perm);
         }
         return null;
     }
@@ -239,11 +246,15 @@ public class BufferPool {
         // some code goes here
         // not necessary for lab1|lab2
         int visit_rest = DEFAULT_PAGES - rest_num;
+        List<Tranlock>temp = tran_rec.get(tid);
+        List<HeapPage>temp2 = tran_rec_page.get(tid);
         for (int i = 0;i<pages.length;i++){
             if (pages[i]!=null){
                 visit_rest = visit_rest - 1;
                 if (pages[i].getId().equals(pid)){
                     locks[i].unlock(tid);
+                    temp.remove(locks[i]);
+                    temp2.remove(pages[i]);
                 }
             }
             if (visit_rest == 0)break;
@@ -284,6 +295,49 @@ public class BufferPool {
     public void transactionComplete(TransactionId tid, boolean commit) {
         // some code goes here
         // not necessary for lab1|lab2
+        if (commit == true){
+            List<HeapPage>temp = tran_rec_page.get(tid);
+            if (temp!=null){
+                for (int i =0;i<temp.size();i++){
+                    PageId pageId = temp.get(i).getId();
+                    try {
+                        flushPage(pageId);   //写脏页
+                    }catch (Exception e){
+                        e.printStackTrace();
+                    }
+                }
+                tran_rec_page.remove(tid);
+            }
+            List<Tranlock>temp2 = tran_rec.get(tid);
+            if (temp2!=null){
+                for (int i =0;i<temp2.size();i++){
+                    temp2.get(i).unlock(tid); //释放锁
+                }
+                tran_rec.remove(tid);
+            }
+        }
+        else{
+            List<HeapPage>temp = tran_rec_page.get(tid);
+            if (temp!=null){
+                for (int i =0;i<temp.size();i++){
+                    PageId pageId = temp.get(i).getId();
+                    int pool_index = page_q.get(pageId);
+                    if (pageId.equals(pages[pool_index].getId())){
+                        pages[pool_index] = (HeapPage) Database.getCatalog().getDatabaseFile(pageId.getTableId()).readPage(pageId);
+                    }
+                }
+                tran_rec_page.remove(tid);
+            }
+
+            List<Tranlock>temp2 = tran_rec.get(tid);
+            if (temp2!=null){
+                for (int i =0;i<temp2.size();i++){
+                    temp2.get(i).unlock(tid); //释放锁
+                }
+                tran_rec.remove(tid);
+            }
+
+        }
     }
 
     /**
