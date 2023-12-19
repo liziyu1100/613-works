@@ -1,9 +1,11 @@
 package simpledb.storage;
 
+import com.sun.corba.se.impl.orbutil.graph.Graph;
 import simpledb.common.Database;
 import simpledb.common.Permissions;
 import simpledb.common.DbException;
 import simpledb.common.DeadlockException;
+import simpledb.storage.support.GraphUtil;
 import simpledb.transaction.TransactionAbortedException;
 import simpledb.transaction.TransactionId;
 import sun.misc.LRUCache;
@@ -90,6 +92,12 @@ public class BufferPool {
             if (ex_lock != null || sh_locks.size()>0)return true;
             return false;
         }
+        public TransactionId getEx_lock(){
+            return ex_lock;
+        }
+        public Set<TransactionId> getSh_lock(){
+            return sh_locks;
+        }
     }
     /** Bytes per page, including header. */
     private static final int DEFAULT_PAGE_SIZE = 4096;
@@ -108,6 +116,7 @@ public class BufferPool {
     private Map<TransactionId,List<Tranlock>>tran_rec;
     private Map<TransactionId,List<HeapPage>>tran_rec_page;
     private Object rec_lock = new Object();
+    private GraphUtil graphUtil = new GraphUtil();
     /**
      * Creates a BufferPool that caches up to numPages pages.
      *
@@ -160,6 +169,12 @@ public class BufferPool {
             if (pages[i]!=null){
                 visit_rest = visit_rest - 1;
                 if (pages[i].getId().equals(pid)){
+                    try {
+                        isDeadLock(tid,locks[i].getEx_lock(),locks[i].getSh_lock(),perm);
+                    }catch (TransactionAbortedException dle){
+                        transactionComplete(tid,false);
+                        throw dle;
+                    }
                     try {
                         locks[i].lock(tid,perm);
                     }catch (Exception e){
@@ -232,6 +247,24 @@ public class BufferPool {
         return -1;
 
     }
+    public void isDeadLock(TransactionId tid,TransactionId ex_tid, Set<TransactionId>sh_tids,Permissions perm) throws TransactionAbortedException {
+        if (perm == Permissions.READ_WRITE){
+            int a=1;
+        }
+        if (ex_tid!=null && !ex_tid.equals(tid)){
+            if (!graphUtil.addnode(Long.toString(tid.getId()),Long.toString(ex_tid.getId())))throw new TransactionAbortedException();
+        }
+
+        if (sh_tids!=null && perm==Permissions.READ_WRITE){
+            Iterator<TransactionId>iterator = sh_tids.iterator();
+            while (iterator.hasNext()){
+                TransactionId temp = iterator.next();
+                if (!temp.equals(tid)){
+                    if (!graphUtil.addnode(Long.toString(tid.getId()),Long.toString(temp.getId())))throw new TransactionAbortedException();
+                }
+            }
+        }
+    }
 
     /**
      * Releases the lock on a page.
@@ -274,6 +307,7 @@ public class BufferPool {
         for (int i =0;i<list.size();i++){
             Tranlock tranlock = list.get(i);
             tranlock.unlock(tid);
+            graphUtil.remove(Long.toString(tid.getId()));
         }
     }
 
@@ -338,6 +372,7 @@ public class BufferPool {
             }
 
         }
+        graphUtil.remove(Long.toString(tid.getId()));
     }
 
     /**
