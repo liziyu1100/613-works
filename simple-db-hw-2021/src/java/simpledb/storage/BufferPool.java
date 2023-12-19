@@ -117,6 +117,7 @@ public class BufferPool {
     private Map<TransactionId,List<HeapPage>>tran_rec_page;
     private Object rec_lock = new Object();
     private GraphUtil graphUtil = new GraphUtil();
+    private Object graph_lock = new Object();
     /**
      * Creates a BufferPool that caches up to numPages pages.
      *
@@ -170,9 +171,12 @@ public class BufferPool {
                 visit_rest = visit_rest - 1;
                 if (pages[i].getId().equals(pid)){
                     try {
-                        isDeadLock(tid,locks[i].getEx_lock(),locks[i].getSh_lock(),perm);
+                        synchronized (graph_lock){
+                            isDeadLock(tid,locks[i].getEx_lock(),locks[i].getSh_lock(),perm);
+                        }
                     }catch (TransactionAbortedException dle){
-                        transactionComplete(tid,false);
+                        //transactionComplete(tid,false);
+                        System.out.println("dead lock!");
                         throw dle;
                     }
                     try {
@@ -248,11 +252,9 @@ public class BufferPool {
 
     }
     public void isDeadLock(TransactionId tid,TransactionId ex_tid, Set<TransactionId>sh_tids,Permissions perm) throws TransactionAbortedException {
-        if (perm == Permissions.READ_WRITE){
-            int a=1;
-        }
         if (ex_tid!=null && !ex_tid.equals(tid)){
-            if (!graphUtil.addnode(Long.toString(tid.getId()),Long.toString(ex_tid.getId())))throw new TransactionAbortedException();
+            if (!graphUtil.addnode(Long.toString(tid.getId()),Long.toString(ex_tid.getId())))
+                throw new TransactionAbortedException();
         }
 
         if (sh_tids!=null && perm==Permissions.READ_WRITE){
@@ -260,7 +262,8 @@ public class BufferPool {
             while (iterator.hasNext()){
                 TransactionId temp = iterator.next();
                 if (!temp.equals(tid)){
-                    if (!graphUtil.addnode(Long.toString(tid.getId()),Long.toString(temp.getId())))throw new TransactionAbortedException();
+                    if (!graphUtil.addnode(Long.toString(tid.getId()),Long.toString(temp.getId())))
+                        throw new TransactionAbortedException();
                 }
             }
         }
