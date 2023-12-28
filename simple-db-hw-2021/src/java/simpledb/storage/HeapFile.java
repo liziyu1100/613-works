@@ -81,13 +81,11 @@ public class HeapFile implements DbFile {
         byte[] resultBytes=new byte[BufferPool.getPageSize()];
         int pgn = pid.getPageNumber();
         int i = 0;
-        boolean sign = false;
         try{
             fis=new FileInputStream(this.df);
             int len;
             while((len=fis.read(resultBytes))!=-1){
                 if (i == pgn){
-                    sign = true;
                     break;
                 }
                 i++;
@@ -153,12 +151,13 @@ public class HeapFile implements DbFile {
         }
 //        byte [] data = new byte[BufferPool.getPageSize()];
 //        Arrays.fill(data, (byte) 0);
-        HeapPage nhp = (HeapPage) Database.getBufferPool().getPage(tid,new HeapPageId(this.getId(),this.numPages()),Permissions.READ_WRITE);
+//        HeapPage nhp = (HeapPage) Database.getBufferPool().getPage(tid,new HeapPageId(this.getId(),this.numPages()),Permissions.READ_WRITE);
+        HeapPage nhp = new HeapPage(new HeapPageId(this.getId(),this.numPages()),HeapPage.createEmptyPageData());
         nhp.insertTuple(t);
         //nhp.markDirty(true,tid);
-        Database.getBufferPool().unsafeReleasePage(tid,nhp.getId());
+        //Database.getBufferPool().unsafeReleasePage(tid,nhp.getId());
         dtp.add(nhp);
-        this.writePage(nhp);
+        //this.writePage(nhp);
 
         return dtp;
         // not necessary for lab1
@@ -185,7 +184,7 @@ public class HeapFile implements DbFile {
     public DbFileIterator iterator(TransactionId tid) {
         // some code goes here
 
-        return new HeapFileIterator(this);
+        return new HeapFileIterator(this,tid);
     }
     public class HeapFileIterator implements DbFileIterator  {
         private boolean open = false;
@@ -193,8 +192,10 @@ public class HeapFile implements DbFile {
         private HeapPageId cur_pageid;
         private Iterator<Tuple> cur_it;
         private int page_num;
-        public HeapFileIterator(HeapFile heapFile){
+        private TransactionId tid;
+        public HeapFileIterator(HeapFile heapFile,TransactionId transactionId){
             this.hf = heapFile;
+            this.tid = transactionId;
             cur_pageid = new HeapPageId(hf.getId(),0);
             page_num = 0;
         }
@@ -221,7 +222,7 @@ public class HeapFile implements DbFile {
 
         protected Tuple readNext() throws DbException, TransactionAbortedException {
             if (this.cur_it == null){
-                HeapPage hp = (HeapPage) Database.getBufferPool().getPage(null,this.cur_pageid,null);
+                HeapPage hp = (HeapPage) Database.getBufferPool().getPage(tid,this.cur_pageid,Permissions.READ_ONLY);
                 cur_it = hp.iterator();
                 page_num = page_num+1;
             }
@@ -231,7 +232,7 @@ public class HeapFile implements DbFile {
             else{
                 if ((page_num+1)*BufferPool.getPageSize()>hf.getFile().length())return null;
                 cur_pageid = new HeapPageId(cur_pageid.getTableId(), cur_pageid.getPageNumber()+1);
-                HeapPage hp = (HeapPage) Database.getBufferPool().getPage(null,this.cur_pageid,null);
+                HeapPage hp = (HeapPage) Database.getBufferPool().getPage(tid,this.cur_pageid,Permissions.READ_ONLY);
 //                if (hp == null){
 //                    hp = (HeapPage) hf.readPage(cur_pageid);
 //                    Database.getBufferPool().addPage(null,hp);

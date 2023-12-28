@@ -260,7 +260,9 @@ public class HeapPage implements Page {
     public void deleteTuple(Tuple t) throws DbException {
         // some code goes here
         // not necessary for lab1
-        if (this.used_slots==0||!this.td.equals(t.getTupleDesc()))throw new DbException("当前页面为空或元组描述不匹配");
+        // System.out.println(t.toString()+"  "+t.getRecordId().getPageId()+"  used_slots:"+this.used_slots);
+        if (!this.td.equals(t.getTupleDesc()))
+            throw new DbException("元组描述不匹配");
         boolean sign = false;
         for (int i =0;i<numSlots;i++){
             if (this.isSlotUsed(i)){
@@ -278,7 +280,7 @@ public class HeapPage implements Page {
                 }
             }
         }
-        if (sign==false)throw new DbException("该元组不在这个页面");
+        // if (sign==false)throw new DbException("该元组不在这个页面");
     }
 
     /**

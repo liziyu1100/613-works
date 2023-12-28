@@ -40,9 +40,8 @@ public class Delete extends Operator {
         this.child=child;
         this.transactionId = t;
         del_num = 0;
-        init();
     }
-    private void init(){
+    private void init() throws DbException, TransactionAbortedException {
         try{
             child.open();
             while (child.hasNext()){
@@ -51,15 +50,15 @@ public class Delete extends Operator {
                 del_num = del_num +1;
             }
             child.close();
-            List<Tuple> res = new ArrayList<>();
-            Type[] types = {Type.INT_TYPE};
-            Tuple t =  new Tuple(new TupleDesc(types));
-            t.setField(0,new IntField(del_num));
-            res.add(t);
-            res_it = res.iterator();
-        }catch (Exception e){
+        }catch (IOException e){
             e.printStackTrace();
         }
+        List<Tuple> res = new ArrayList<>();
+        Type[] types = {Type.INT_TYPE};
+        Tuple t =  new Tuple(new TupleDesc(types));
+        t.setField(0,new IntField(del_num));
+        res.add(t);
+        res_it = res.iterator();
     }
 
     public TupleDesc getTupleDesc() {
@@ -92,6 +91,7 @@ public class Delete extends Operator {
      */
     protected Tuple fetchNext() throws TransactionAbortedException, DbException {
         // some code goes here
+        init();
         if (this.res_it.hasNext())return res_it.next();
         return null;
     }

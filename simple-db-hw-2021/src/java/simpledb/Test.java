@@ -13,18 +13,10 @@ import java.io.File;
 import java.util.*;
 
 public class Test {
+    public static int a = 5;
     public static void main(String[] args) {
-        // construct a 3-column table schema
-        Map<String, List<Integer>>test = new HashMap<>();
-        List<Integer>temp = new ArrayList<>();
-        List<Integer>list = new ArrayList<>();
-        list.add(5);
-        test.put("test2",list);
-        temp.add(1);
-        test.put("test",temp);
-        List<Integer>temp2 = test.get("test");
-        temp2.add(3);
-        System.out.println(test);
+        Test test = new Test();
+        test.teststatic();
     }
     public static void OperatorTest(){
         Type types[] = new Type[]{Type.INT_TYPE, Type.INT_TYPE};
@@ -96,5 +88,9 @@ public class Test {
         } catch (Exception e) {
             System.out.println ("Exception : " + e);
         }
+    }
+    public void teststatic(){
+        a=a+1;
+        System.out.println(a);
     }
 }

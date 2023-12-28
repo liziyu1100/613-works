@@ -7,7 +7,7 @@ import simpledb.storage.*;
 import simpledb.transaction.TransactionAbortedException;
 import simpledb.transaction.TransactionId;
 
-import javax.xml.crypto.Data;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -24,6 +24,7 @@ public class Insert extends Operator {
     private int tableId;
     private int in_num;
     private Iterator<Tuple>res_it;
+    private boolean insert_finish = false;
     /**
      * Constructor.
      *
@@ -44,28 +45,29 @@ public class Insert extends Operator {
         this.transactionId = t;
         this.tableId = tableId;
         in_num = 0;
-        init();
-
+        if (!child.getTupleDesc().equals(Database.getCatalog().getTupleDesc(tableId)))throw new DbException("TupleDesc not match");
     }
-    private void init(){
-        try{
-            child.open();
-            while (child.hasNext()){
-                Tuple t = child.next();
-                Database.getBufferPool().insertTuple(this.transactionId,tableId,t);
-                in_num = in_num +1;
+    private void init() throws DbException,TransactionAbortedException{
+        if (insert_finish == false){
+            try{
+                child.open();
+                while (child.hasNext()){
+                    Tuple t = child.next();
+                    Database.getBufferPool().insertTuple(this.transactionId,tableId,t);
+                    in_num = in_num +1;
+                }
+                child.close();
+                List<Tuple> res = new ArrayList<>();
+                Type[] types = {Type.INT_TYPE};
+                Tuple t =  new Tuple(new TupleDesc(types));
+                t.setField(0,new IntField(in_num));
+                res.add(t);
+                res_it = res.iterator();
+                insert_finish = true;
+            }catch (IOException e){
+                e.printStackTrace();
             }
-            child.close();
-            List<Tuple> res = new ArrayList<>();
-            Type[] types = {Type.INT_TYPE};
-            Tuple t =  new Tuple(new TupleDesc(types));
-            t.setField(0,new IntField(in_num));
-            res.add(t);
-            res_it = res.iterator();
-        }catch (Exception e){
-            e.printStackTrace();
         }
-
     }
 
     public TupleDesc getTupleDesc() {
@@ -102,6 +104,7 @@ public class Insert extends Operator {
      */
     protected Tuple fetchNext() throws TransactionAbortedException, DbException {
         // some code goes here
+        init();
         if (res_it.hasNext())return res_it.next();
         return null;
     }

@@ -1,20 +1,17 @@
 package simpledb.storage;
 
-import com.sun.corba.se.impl.orbutil.graph.Graph;
 import simpledb.common.Database;
 import simpledb.common.Permissions;
 import simpledb.common.DbException;
-import simpledb.common.DeadlockException;
 import simpledb.storage.support.GraphUtil;
+import simpledb.storage.support.Tranlock;
 import simpledb.transaction.TransactionAbortedException;
 import simpledb.transaction.TransactionId;
-import sun.misc.LRUCache;
 
 import java.io.*;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
+
 
 /**
  * BufferPool manages the reading and writing of pages into memory from
@@ -29,76 +26,6 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  */
 public class BufferPool {
 
-    public class Tranlock{
-        private Set<TransactionId>sh_locks;
-        private TransactionId ex_lock;
-        private Object read_lock = new Object();
-        private Object write_lock = new Object();
-        public Tranlock(){
-            sh_locks = new HashSet<>();
-            ex_lock = null;
-        }
-        public void lock(TransactionId tid,Permissions perm) throws InterruptedException {
-                if (perm == Permissions.READ_ONLY){
-                    synchronized (write_lock){
-                        if (ex_lock != null && ex_lock != tid) {
-                            write_lock.wait();
-                        }
-                        sh_locks.add(tid);
-                    }
-                }
-
-                if (perm == Permissions.READ_WRITE){
-                    if (sh_locks.size()>=1){
-                        synchronized (read_lock){
-                            if (sh_locks.size() == 1){
-                                if (sh_locks.contains(tid)){
-                                    sh_locks.remove(tid);
-                                }
-                                else{
-                                    read_lock.wait();
-                                }
-                            }
-                            else if (sh_locks.size() > 1){
-                                read_lock.wait();
-                            }
-                            ex_lock = tid;
-                        }
-                    }
-                    else{
-                        synchronized (write_lock){
-                            if (ex_lock!=null && ex_lock!=tid)write_lock.wait();
-                            ex_lock = tid;
-                        }
-                    }
-                }
-        }
-        public void unlock(TransactionId tid){
-            if (ex_lock == tid){
-                synchronized (write_lock){
-                    ex_lock = null;
-                    write_lock.notify();
-                }
-            }
-            else{
-                synchronized (read_lock){
-                    if (sh_locks.remove(tid)){
-                        read_lock.notify();
-                    }
-                }
-            }
-        }
-        public boolean islocked(){
-            if (ex_lock != null || sh_locks.size()>0)return true;
-            return false;
-        }
-        public TransactionId getEx_lock(){
-            return ex_lock;
-        }
-        public Set<TransactionId> getSh_lock(){
-            return sh_locks;
-        }
-    }
     /** Bytes per page, including header. */
     private static final int DEFAULT_PAGE_SIZE = 4096;
 
@@ -108,16 +35,15 @@ public class BufferPool {
     other classes. BufferPool should use the numPages argument to the
     constructor instead. */
     public static final int DEFAULT_PAGES = 50;
-    private HeapPage[] pages;
-    private Tranlock[] locks;
-    private int rest_num;
-    private LinkedHashMap<HeapPageId,Integer> page_q;
-    private Object add_lock = new Object();
+    private HeapPage[] pages; //纪录每页
+    private Tranlock[] locks; //纪录每页的锁
+    private int rest_num; //纪录当前缓冲池还有多少页
+    private LinkedHashMap<HeapPageId,Integer> page_q;// 队列，用于纪录页面的访问情况
+    private Object add_lock = new Object(); // pages共享资源锁
     private Map<TransactionId,List<Tranlock>>tran_rec;
     private Map<TransactionId,List<HeapPage>>tran_rec_page;
-    private Object rec_lock = new Object();
-    private GraphUtil graphUtil = new GraphUtil();
-    private Object graph_lock = new Object();
+    private Object rec_lock = new Object(); // tran_rec 和 tran_rec_page共享资源锁
+    private Object[] op_lock ;
     /**
      * Creates a BufferPool that caches up to numPages pages.
      *
@@ -131,6 +57,8 @@ public class BufferPool {
         this.page_q = new LinkedHashMap<>();
         this.tran_rec = new HashMap<>();
         this.tran_rec_page = new HashMap<>();
+        this.op_lock = new Object[numPages];
+        for (int i =0;i<numPages;i++)op_lock[i] = new Object();
     }
     
     public static int getPageSize() {
@@ -171,19 +99,11 @@ public class BufferPool {
                 visit_rest = visit_rest - 1;
                 if (pages[i].getId().equals(pid)){
                     try {
-                        synchronized (graph_lock){
-                            isDeadLock(tid,locks[i].getEx_lock(),locks[i].getSh_lock(),perm);
-                        }
-                    }catch (TransactionAbortedException dle){
-                        //transactionComplete(tid,false);
-                        System.out.println("dead lock!");
-                        throw dle;
-                    }
-                    try {
-                        locks[i].lock(tid,perm);
-                    }catch (Exception e){
+                        locks[i].lock(tid, perm);
+                    }catch (InterruptedException e){
                         e.printStackTrace();
                     }
+
                     synchronized (rec_lock){
                         if (tran_rec.get(tid)==null){
                             List<Tranlock>temp = new ArrayList<>();
@@ -194,10 +114,12 @@ public class BufferPool {
                             tran_rec_page.put(tid,temp2);
                         }
                         else{
-                            List<Tranlock>temp = tran_rec.get(tid);
-                            temp.add(locks[i]);
                             List<HeapPage>temp2 = tran_rec_page.get(tid);
-                            temp2.add(pages[i]);
+                            if (!temp2.contains(pages[i])){
+                                temp2.add(pages[i]);
+                                List<Tranlock>temp = tran_rec.get(tid);
+                                temp.add(locks[i]);
+                            }
                         }
                     }
                     return pages[i];
@@ -226,7 +148,7 @@ public class BufferPool {
         return null;
     }
 
-    public int addPage(TransactionId tid,Page page ){
+    public int addPage(TransactionId tid,Page page ) throws DbException{
 
         if (page_q.get(page.getId())!=null)return -1;
         if (this.rest_num>0){
@@ -241,34 +163,11 @@ public class BufferPool {
             }
         }
         else{
-            try {
-                evictPage();
-            }catch (Exception e){
-                e.printStackTrace();
-            }
-           return addPage(tid,page);
+            evictPage();
+            return addPage(tid,page);
         }
         return -1;
-
     }
-    public void isDeadLock(TransactionId tid,TransactionId ex_tid, Set<TransactionId>sh_tids,Permissions perm) throws TransactionAbortedException {
-        if (ex_tid!=null && !ex_tid.equals(tid)){
-            if (!graphUtil.addnode(Long.toString(tid.getId()),Long.toString(ex_tid.getId())))
-                throw new TransactionAbortedException();
-        }
-
-        if (sh_tids!=null && perm==Permissions.READ_WRITE){
-            Iterator<TransactionId>iterator = sh_tids.iterator();
-            while (iterator.hasNext()){
-                TransactionId temp = iterator.next();
-                if (!temp.equals(tid)){
-                    if (!graphUtil.addnode(Long.toString(tid.getId()),Long.toString(temp.getId())))
-                        throw new TransactionAbortedException();
-                }
-            }
-        }
-    }
-
     /**
      * Releases the lock on a page.
      * Calling this is very risky, and may result in wrong behavior. Think hard
@@ -282,20 +181,21 @@ public class BufferPool {
         // some code goes here
         // not necessary for lab1|lab2
         int visit_rest = DEFAULT_PAGES - rest_num;
-        List<Tranlock>temp = tran_rec.get(tid);
-        List<HeapPage>temp2 = tran_rec_page.get(tid);
-        for (int i = 0;i<pages.length;i++){
-            if (pages[i]!=null){
-                visit_rest = visit_rest - 1;
-                if (pages[i].getId().equals(pid)){
-                    locks[i].unlock(tid);
-                    temp.remove(locks[i]);
-                    temp2.remove(pages[i]);
+        synchronized (rec_lock){
+            List<Tranlock>temp = tran_rec.get(tid);
+            List<HeapPage>temp2 = tran_rec_page.get(tid);
+            for (int i = 0;i<pages.length;i++){
+                if (pages[i]!=null){
+                    visit_rest = visit_rest - 1;
+                    if (pages[i].getId().equals(pid)){
+                        locks[i].unlock(tid);
+                        temp.remove(locks[i]);
+                        temp2.remove(pages[i]);
+                    }
                 }
+                if (visit_rest == 0)break;
             }
-            if (visit_rest == 0)break;
         }
-
     }
 
     /**
@@ -310,7 +210,6 @@ public class BufferPool {
         for (int i =0;i<list.size();i++){
             Tranlock tranlock = list.get(i);
             tranlock.unlock(tid);
-            graphUtil.remove(Long.toString(tid.getId()));
         }
     }
 
@@ -332,50 +231,50 @@ public class BufferPool {
     public void transactionComplete(TransactionId tid, boolean commit) {
         // some code goes here
         // not necessary for lab1|lab2
-        if (commit == true){
-            List<HeapPage>temp = tran_rec_page.get(tid);
-            if (temp!=null){
-                for (int i =0;i<temp.size();i++){
-                    PageId pageId = temp.get(i).getId();
-                    try {
-                        flushPage(pageId);   //写脏页
-                    }catch (Exception e){
-                        e.printStackTrace();
+        //System.out.println("开始移除lock "+tid);
+            if (commit == true){
+                List<HeapPage>temp = tran_rec_page.get(tid);
+                if (temp!=null){
+                    for (int i =0;i<temp.size();i++){
+                        PageId pageId = temp.get(i).getId();
+                        try {
+                            flushPage(pageId);   //写脏页
+                        }catch (Exception e){
+                            e.printStackTrace();
+                        }
                     }
+                    tran_rec_page.remove(tid);
                 }
-                tran_rec_page.remove(tid);
-            }
-            List<Tranlock>temp2 = tran_rec.get(tid);
-            if (temp2!=null){
-                for (int i =0;i<temp2.size();i++){
-                    temp2.get(i).unlock(tid); //释放锁
-                }
-                tran_rec.remove(tid);
-            }
-        }
-        else{
-            List<HeapPage>temp = tran_rec_page.get(tid);
-            if (temp!=null){
-                for (int i =0;i<temp.size();i++){
-                    PageId pageId = temp.get(i).getId();
-                    int pool_index = page_q.get(pageId);
-                    if (pageId.equals(pages[pool_index].getId())){
-                        pages[pool_index] = (HeapPage) Database.getCatalog().getDatabaseFile(pageId.getTableId()).readPage(pageId);
+                List<Tranlock>temp2 = tran_rec.get(tid);
+                if (temp2!=null){
+                    for (int i =0;i<temp2.size();i++){
+                        temp2.get(i).unlock(tid); //释放锁
                     }
+                    tran_rec.remove(tid);
                 }
-                tran_rec_page.remove(tid);
             }
-
-            List<Tranlock>temp2 = tran_rec.get(tid);
-            if (temp2!=null){
-                for (int i =0;i<temp2.size();i++){
-                    temp2.get(i).unlock(tid); //释放锁
+            else{
+                List<HeapPage>temp = tran_rec_page.get(tid);
+                if (temp!=null){
+                    for (int i =0;i<temp.size();i++){
+                        PageId pageId = temp.get(i).getId();
+                        if (page_q.containsKey(pageId)){
+                            int pool_index = page_q.get(pageId);
+                            if (pageId.equals(pages[pool_index].getId()) && pages[pool_index].isDirty()!=null){
+                                pages[pool_index] = (HeapPage) Database.getCatalog().getDatabaseFile(pageId.getTableId()).readPage(pageId);
+                            }
+                        }
+                    }
+                    tran_rec_page.remove(tid);
                 }
-                tran_rec.remove(tid);
+                List<Tranlock>temp2 = tran_rec.get(tid);
+                if (temp2!=null){
+                    for (int i =0;i<temp2.size();i++){
+                        temp2.get(i).unlock(tid); //释放锁
+                    }
+                    tran_rec.remove(tid);
+                }
             }
-
-        }
-        graphUtil.remove(Long.toString(tid.getId()));
     }
 
     /**
@@ -397,25 +296,13 @@ public class BufferPool {
         throws DbException, IOException, TransactionAbortedException {
         // some code goes here
         // not necessary for lab1
-//        boolean sign =false;
-//        int i = 0;
-//        while (!sign){
-//            HeapPageId heapPageId = new HeapPageId(tableId,i);
-//            HeapPage heapPage = (HeapPage) this.getPage(tid,heapPageId,Permissions.READ_WRITE);
-//            try{
-//                heapPage.insertTuple(t);
-//                heapPage.markDirty(true,tid);
-//            }catch (Exception e){
-//                i = i+1;
-//                continue;
-//            }
-//            sign = true;
-//        }
         DbFile hdf = Database.getCatalog().getDatabaseFile(tableId);
         List<Page> dtp =  hdf.insertTuple(tid,t);
-//        for (int i =0;i<dtp.size();i++){
-//            this.addPage(tid,dtp.get(i));
-//        }
+        synchronized (add_lock){
+            for (int i =0;i<dtp.size();i++){
+                this.addPage(tid,dtp.get(i));
+            }
+        }
     }
 
     /**
@@ -524,7 +411,7 @@ public class BufferPool {
             page_q.remove(key);
             break;
         }
-        if (sign = false)throw new DbException("all dirty pages");
+        if (sign == false)throw new DbException("all dirty pages");
         for (int i = 0;i<pages.length;i++){
             if (pages[i].getId().equals(key)){
                 pages[i] = null;
