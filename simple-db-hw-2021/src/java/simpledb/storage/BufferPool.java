@@ -128,44 +128,53 @@ public class BufferPool {
             if (visit_rest == 0)break;
         }
 
-        HeapPage nhp = (HeapPage) Database.getCatalog().getDatabaseFile(pid.getTableId()).readPage(pid);
+
+        HeapPage nhp =  (HeapPage) Database.getCatalog().getDatabaseFile(pid.getTableId()).readPage(pid);
         if (nhp != null){
             synchronized (add_lock){
-                int i = this.addPage(tid,nhp);
+                int i = this.addPage(tid,nhp, true);
                 if (i == -1){  // already added by other tran
                     return getPage(tid, pid, perm);
                 }
-                else{
-                    try {
-                        locks[i].lock(tid,perm);
-                    }catch (Exception e){
-                        e.printStackTrace();
-                    }
-                }
+//                else{
+//                    try {
+//                        locks[i].lock(tid,perm);
+//                    }catch (Exception e){
+//                        e.printStackTrace();
+//                    }
+//                }
             }
             return getPage(tid,pid,perm);
         }
         return null;
     }
 
-    public int addPage(TransactionId tid,Page page ) throws DbException{
-
-        if (page_q.get(page.getId())!=null)return -1;
-        if (this.rest_num>0){
-            for (int i = 0;i<this.pages.length;i++){
-                if (this.pages[i]==null){
-                    this.pages[i]= (HeapPage) page;
-                    this.locks[i] = new Tranlock();
-                    this.rest_num = this.rest_num-1;
-                    page_q.put(pages[i].getId(),i);
-                    return i;
-                }
+    public int addPage(TransactionId tid,Page page, boolean is_new ) throws DbException{
+        if (!is_new){
+            Integer index = page_q.get(page.getId());
+            if (index != null){
+                if (pages[index].equals(page.getId()))pages[index] = (HeapPage) page;
             }
         }
         else{
-            evictPage();
-            return addPage(tid,page);
+            if (page_q.get(page.getId())!=null)return -1;
+            if (this.rest_num>0){
+                for (int i = 0;i<this.pages.length;i++){
+                    if (this.pages[i]==null){
+                        this.pages[i]= (HeapPage) page;
+                        this.locks[i] = new Tranlock();
+                        this.rest_num = this.rest_num-1;
+                        page_q.put(pages[i].getId(),i);
+                        return i;
+                    }
+                }
+            }
+            else{
+                evictPage();
+                return addPage(tid,page, true);
+            }
         }
+
         return -1;
     }
     /**
@@ -207,9 +216,11 @@ public class BufferPool {
         // some code goes here
         // not necessary for lab1|lab2
         List<Tranlock>list = tran_rec.get(tid);
-        for (int i =0;i<list.size();i++){
-            Tranlock tranlock = list.get(i);
-            tranlock.unlock(tid);
+        if (list!=null){
+            for (int i =0;i<list.size();i++){
+                Tranlock tranlock = list.get(i);
+                tranlock.unlock(tid);
+            }
         }
     }
 
@@ -232,7 +243,7 @@ public class BufferPool {
         // some code goes here
         // not necessary for lab1|lab2
         //System.out.println("开始移除lock "+tid);
-            if (commit == true){
+            if (commit){
                 List<HeapPage>temp = tran_rec_page.get(tid);
                 if (temp!=null){
                     for (int i =0;i<temp.size();i++){
@@ -298,9 +309,12 @@ public class BufferPool {
         // not necessary for lab1
         DbFile hdf = Database.getCatalog().getDatabaseFile(tableId);
         List<Page> dtp =  hdf.insertTuple(tid,t);
-        synchronized (add_lock){
+        if (dtp!=null){
             for (int i =0;i<dtp.size();i++){
-                this.addPage(tid,dtp.get(i));
+                synchronized (add_lock){
+                    this.addPage(tid,dtp.get(i),true);
+                }
+                getPage(tid,dtp.get(i).getId(),Permissions.READ_WRITE);
             }
         }
     }
@@ -329,9 +343,9 @@ public class BufferPool {
         int tableid = t.getRecordId().getPageId().getTableId();
         DbFile hdf = Database.getCatalog().getDatabaseFile(tableid);
         List<Page> dtp =  hdf.deleteTuple(tid,t);
-        for (int i =0;i<dtp.size();i++){
-            this.addPage(tid,dtp.get(i));
-        }
+//        for (int i =0;i<dtp.size();i++){
+//            this.addPage(tid,dtp.get(i));
+//        }
     }
 
     /**

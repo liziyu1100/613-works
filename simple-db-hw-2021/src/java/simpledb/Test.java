@@ -12,11 +12,10 @@ import simpledb.transaction.TransactionId;
 import java.io.File;
 import java.util.*;
 
+
 public class Test {
     public static int a = 5;
     public static void main(String[] args) {
-        Test test = new Test();
-        test.teststatic();
     }
     public static void OperatorTest(){
         Type types[] = new Type[]{Type.INT_TYPE, Type.INT_TYPE};

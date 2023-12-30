@@ -82,6 +82,7 @@ public class HeapFile implements DbFile {
         int pgn = pid.getPageNumber();
         int i = 0;
         try{
+            if (pgn>=numPages())return new HeapPage((HeapPageId) pid,HeapPage.createEmptyPageData());
             fis=new FileInputStream(this.df);
             int len;
             while((len=fis.read(resultBytes))!=-1){
@@ -140,13 +141,13 @@ public class HeapFile implements DbFile {
             HeapPage hp1 = (HeapPage) Database.getBufferPool().getPage(tid,new HeapPageId(this.getId(),i),Permissions.READ_WRITE);
             if (hp1!=null){
                 if (hp1.getNumEmptySlots()==0){
-                    Database.getBufferPool().unsafeReleasePage(tid,hp1.getId());
+                    //Database.getBufferPool().unsafeReleasePage(tid,hp1.getId());
                     continue;
                 }
                 hp1.insertTuple(t);
                 hp1.markDirty(true,tid);
                 dtp.add(hp1);
-                return dtp;
+                return null;
             }
         }
 //        byte [] data = new byte[BufferPool.getPageSize()];
@@ -154,11 +155,10 @@ public class HeapFile implements DbFile {
 //        HeapPage nhp = (HeapPage) Database.getBufferPool().getPage(tid,new HeapPageId(this.getId(),this.numPages()),Permissions.READ_WRITE);
         HeapPage nhp = new HeapPage(new HeapPageId(this.getId(),this.numPages()),HeapPage.createEmptyPageData());
         nhp.insertTuple(t);
-        //nhp.markDirty(true,tid);
+        this.writePage(nhp);
+        nhp.markDirty(true,tid);
         //Database.getBufferPool().unsafeReleasePage(tid,nhp.getId());
         dtp.add(nhp);
-        //this.writePage(nhp);
-
         return dtp;
         // not necessary for lab1
     }
@@ -177,7 +177,6 @@ public class HeapFile implements DbFile {
         Database.getBufferPool().unsafeReleasePage(tid,hp.getId());
         dtp.add(hp);
         return dtp;
-
     }
 
     // see DbFile.java for javadocs

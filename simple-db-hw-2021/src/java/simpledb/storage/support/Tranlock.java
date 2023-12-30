@@ -58,7 +58,7 @@ public class Tranlock{
                     ex_lock = tid;
                     sign = 0;
                 }
-                else if (sh_locks.size()>1){
+                else if (sh_locks.size()>1 || (sh_locks.size()==1&&!sh_locks.contains(tid))){
                     sign = 1;
                 }
                 else if (ex_lock != null && !ex_lock.equals(tid)){
