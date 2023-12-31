@@ -63,8 +63,8 @@ public class GraphUtil {
                     if (dstlist == null){
                         dstlist = new ArrayList<>();
                         adj.put(dst,dstlist);
-                        visit.put(dst,false);
                     }
+                    if (visit.get(dst)==null)visit.put(dst,false);
                 }
 
                 if (havaCircle(src)){
@@ -91,6 +91,7 @@ public class GraphUtil {
         visit.put(src,true);
         while (!queue.isEmpty()){
             List<String>temp = queue.poll();
+            if (temp == null) continue;
             for (int i =0;i<temp.size();i++){
                 if (temp.get(i).equals(src))return true;
                 if (!visit.get(temp.get(i))){

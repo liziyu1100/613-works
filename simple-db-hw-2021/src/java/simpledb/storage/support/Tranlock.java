@@ -11,25 +11,37 @@ public class Tranlock{
     private TransactionId ex_lock;
     private Object res_lock = new Object();
     private static GraphUtil graphUtil = new GraphUtil();
+    private List<TransactionId> for_read_q;
     private Object read_lock = new Object();
     private Object write_lock = new Object();
+    private Object for_lock = new Object();
     public Tranlock(){
         sh_locks = new HashSet<>();
         ex_lock = null;
+        for_read_q = new ArrayList<>();
     }
     public void lock(TransactionId tid, Permissions perm) throws InterruptedException, TransactionAbortedException {
         if (perm == Permissions.READ_ONLY){
             boolean sign;
             synchronized (res_lock){
+                List<TransactionId>dstit = new ArrayList<>();
+                dstit.add(tid);
+                synchronized (for_lock){
+                    for (int i =0;i<for_read_q.size();i++){
+                        graphUtil.addnode(Long.toString(for_read_q.get(i).getId()),dstit.iterator());
+                    }
+                }
                 isDeadLock(tid,perm);
                 if (ex_lock == null){
-                    sh_locks.add(tid);
                     sign = true;
+                    if (!sh_locks.contains(tid)){
+                        sh_locks.add(tid);
+                        //System.out.println(tid.getId()+ "  get read lock");
+                    }
                 }
                 else if (ex_lock == tid){
-                    ex_lock = null;
-                    sh_locks.add(tid);
                     sign = true;
+                    //System.out.println(tid.getId()+ "  have got read_write_lock");
                 }
                 else{
                     sign = false;
@@ -53,10 +65,12 @@ public class Tranlock{
                     sh_locks.remove(tid);
                     ex_lock = tid;
                     sign = 0;
+                    //System.out.println(tid.getId()+ "  get write lock");
                 }
                 else if ((sh_locks.size() == 0 && ex_lock == null)||(ex_lock != null && ex_lock.equals(tid))){
                     ex_lock = tid;
                     sign = 0;
+                    //System.out.println(tid.getId()+ "  get write lock");
                 }
                 else if (sh_locks.size()>1 || (sh_locks.size()==1&&!sh_locks.contains(tid))){
                     sign = 1;
@@ -67,10 +81,16 @@ public class Tranlock{
             }
             if (sign == 1){
                 synchronized (read_lock){
+                    synchronized (for_lock){
+                        for_read_q.add(tid);
+                    }
+                    //System.out.println(tid.getId()+ "  read_lock block");
                     read_lock.wait();
                 }
                 synchronized (res_lock){
-//                    System.out.println("升级成功");
+                    synchronized (for_lock){
+                        for_read_q.remove(tid);
+                    }
                     sh_locks.remove(tid);
                     ex_lock = tid;
                 }
@@ -114,7 +134,15 @@ public class Tranlock{
                 if (sh_locks.remove(tid)){
                     graphUtil.remove(Long.toString(tid.getId()));
                     synchronized (read_lock){
-                        if (sh_locks.size() == 1)read_lock.notify();
+                        synchronized (res_lock){
+                            if (sh_locks.size() == 1){
+                                synchronized (for_lock){
+                                    if (for_read_q.size()==1 && sh_locks.iterator().next().equals(for_read_q.get(0)))read_lock.notify();
+                                }
+
+                            }
+                            else if (sh_locks.size() == 0)read_lock.notify();
+                        }
                     }
                 }
             }

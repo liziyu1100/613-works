@@ -26,6 +26,7 @@ public class Delete extends Operator {
     private OpIterator child;
     private Iterator<Tuple>res_it;
     private int del_num;
+    private boolean delete_finish = false;
     /**
      * Constructor specifying the transaction that this delete belongs to as
      * well as the child to read from.
@@ -42,23 +43,32 @@ public class Delete extends Operator {
         del_num = 0;
     }
     private void init() throws DbException, TransactionAbortedException {
-        try{
-            child.open();
-            while (child.hasNext()){
-                Tuple t = child.next();
-                Database.getBufferPool().deleteTuple(this.transactionId,t);
-                del_num = del_num +1;
+        if (delete_finish == false){
+            try{
+                child.open();
+                List<Tuple>del = new ArrayList<>();
+                while (child.hasNext()){
+                    Tuple t = child.next();
+                    del.add(t);
+                    del_num = del_num +1;
+                }
+                for (int i =0;i<del.size();i++){
+                    Database.getBufferPool().deleteTuple(this.transactionId,del.get(i));
+                }
+                del = null;
+                child.close();
+            }catch (IOException e){
+                e.printStackTrace();
             }
-            child.close();
-        }catch (IOException e){
-            e.printStackTrace();
+            List<Tuple> res = new ArrayList<>();
+            Type[] types = {Type.INT_TYPE};
+            Tuple t =  new Tuple(new TupleDesc(types));
+            t.setField(0,new IntField(del_num));
+            res.add(t);
+            res_it = res.iterator();
+            delete_finish = true;
         }
-        List<Tuple> res = new ArrayList<>();
-        Type[] types = {Type.INT_TYPE};
-        Tuple t =  new Tuple(new TupleDesc(types));
-        t.setField(0,new IntField(del_num));
-        res.add(t);
-        res_it = res.iterator();
+
     }
 
     public TupleDesc getTupleDesc() {
