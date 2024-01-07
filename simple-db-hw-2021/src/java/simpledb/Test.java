@@ -11,11 +11,14 @@ import simpledb.transaction.TransactionId;
 
 import java.io.File;
 import java.util.*;
+import java.util.stream.Stream;
 
 
 public class Test {
     public static int a = 5;
     public static void main(String[] args) {
+        Stream<Integer>a =  Stream.of(1,2,3,4,5,6);
+        System.out.println(a.skip(2).count());
     }
     public static void OperatorTest(){
         Type types[] = new Type[]{Type.INT_TYPE, Type.INT_TYPE};
