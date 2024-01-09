@@ -35,13 +35,13 @@ public class BufferPool {
     other classes. BufferPool should use the numPages argument to the
     constructor instead. */
     public static final int DEFAULT_PAGES = 50;
-    private HeapPage[] pages; //纪录每页
+    private Page[] pages; //纪录每页
     private Tranlock[] locks; //纪录每页的锁
     private int rest_num; //纪录当前缓冲池还有多少页
-    private LinkedHashMap<HeapPageId,Integer> page_q;// 队列，用于纪录页面的访问情况
+    private LinkedHashMap<PageId,Integer> page_q;// 队列，用于纪录页面的访问情况
     private Object add_lock = new Object(); // pages共享资源锁
     private Map<TransactionId,List<Tranlock>>tran_rec;
-    private Map<TransactionId,List<HeapPageId>>tran_rec_page;
+    private Map<TransactionId,List<PageId>>tran_rec_page;
     private Object rec_lock = new Object(); // tran_rec 和 tran_rec_page共享资源锁
     private Object[] op_lock ;
     /**
@@ -51,7 +51,7 @@ public class BufferPool {
      */
     public BufferPool(int numPages) {
         // some code goes here
-        this.pages = new HeapPage[numPages];
+        this.pages = new Page[numPages];
         this.locks = new Tranlock[numPages];
         this.rest_num = numPages;
         this.page_q = new LinkedHashMap<>();
@@ -109,12 +109,12 @@ public class BufferPool {
                             List<Tranlock>temp = new ArrayList<>();
                             temp.add(locks[i]);
                             tran_rec.put(tid,temp);
-                            List<HeapPageId>temp2 = new ArrayList<>();
+                            List<PageId>temp2 = new ArrayList<>();
                             temp2.add(pages[i].getId());
                             tran_rec_page.put(tid,temp2);
                         }
                         else{
-                            List<HeapPageId>temp2 = tran_rec_page.get(tid);
+                            List<PageId>temp2 = tran_rec_page.get(tid);
                             if (!temp2.contains(pages[i])){
                                 temp2.add(pages[i].getId());
                                 List<Tranlock>temp = tran_rec.get(tid);
@@ -129,7 +129,7 @@ public class BufferPool {
         }
 
 
-        HeapPage nhp =  (HeapPage) Database.getCatalog().getDatabaseFile(pid.getTableId()).readPage(pid);
+        Page nhp =  Database.getCatalog().getDatabaseFile(pid.getTableId()).readPage(pid);
         if (nhp != null){
             synchronized (add_lock){
                 int i = this.addPage(tid,nhp, true);
@@ -153,7 +153,7 @@ public class BufferPool {
         if (!is_new){
             Integer index = page_q.get(page.getId());
             if (index != null){
-                if (pages[index].equals(page.getId()))pages[index] = (HeapPage) page;
+                if (pages[index].equals(page.getId()))pages[index] =  page;
             }
         }
         else{
@@ -161,7 +161,7 @@ public class BufferPool {
             if (this.rest_num>0){
                 for (int i = 0;i<this.pages.length;i++){
                     if (this.pages[i]==null){
-                        this.pages[i]= (HeapPage) page;
+                        this.pages[i]= page;
                         this.locks[i] = new Tranlock();
                         this.rest_num = this.rest_num-1;
                         page_q.put(pages[i].getId(),i);
@@ -192,7 +192,7 @@ public class BufferPool {
         int visit_rest = DEFAULT_PAGES - rest_num;
         synchronized (rec_lock){
             List<Tranlock>temp = tran_rec.get(tid);
-            List<HeapPageId>temp2 = tran_rec_page.get(tid);
+            List<PageId>temp2 = tran_rec_page.get(tid);
             for (int i = 0;i<pages.length;i++){
                 if (pages[i]!=null){
                     visit_rest = visit_rest - 1;
@@ -244,7 +244,7 @@ public class BufferPool {
         // not necessary for lab1|lab2
         //System.out.println("开始移除lock "+tid);
             if (commit){
-                List<HeapPageId>temp = tran_rec_page.get(tid);
+                List<PageId>temp = tran_rec_page.get(tid);
                 if (temp!=null){
                     for (int i =0;i<temp.size();i++){
                         PageId pageId = temp.get(i);
@@ -265,14 +265,14 @@ public class BufferPool {
                 }
             }
             else{
-                List<HeapPageId>temp = tran_rec_page.get(tid);
+                List<PageId>temp = tran_rec_page.get(tid);
                 if (temp!=null){
                     for (int i =0;i<temp.size();i++){
                         PageId pageId = temp.get(i);
                         if (page_q.containsKey(pageId)){
                             int pool_index = page_q.get(pageId);
                             if (pageId.equals(pages[pool_index].getId()) && pages[pool_index].isDirty()!=null){
-                                pages[pool_index] = (HeapPage) Database.getCatalog().getDatabaseFile(pageId.getTableId()).readPage(pageId);
+                                pages[pool_index] = Database.getCatalog().getDatabaseFile(pageId.getTableId()).readPage(pageId);
                             }
                         }
                     }
@@ -413,10 +413,10 @@ public class BufferPool {
     private synchronized  void evictPage() throws DbException {
         // some code goes here
         // not necessary for lab1
-        HeapPageId key = null;
+        PageId key = null;
         boolean sign = false;
         int value = -1;
-        for (Map.Entry<HeapPageId, Integer> mapElement : page_q.entrySet()) {
+        for (Map.Entry<PageId, Integer> mapElement : page_q.entrySet()) {
             // 获取键
             key = mapElement.getKey();
             value = mapElement.getValue();
