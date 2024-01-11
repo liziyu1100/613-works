@@ -257,6 +257,8 @@ public class BTreeFile implements DbFile {
 		// the new entry.  getParentWithEmtpySlots() will be useful here.  Don't forget to update
 		// the sibling pointers of all the affected leaf pages.  Return the page into which a 
 		// tuple with the given key field should be inserted.
+
+		// 将满页拆分成两个页
 		Iterator<Tuple> tupleIterator = page.iterator();
 		List<Tuple>tuples = new ArrayList<>();
 		while (tupleIterator.hasNext()){
@@ -265,39 +267,52 @@ public class BTreeFile implements DbFile {
 		}
 		int split_index = tuples.size()/2;
 		List<Tuple>right_page = new ArrayList<>(tuples.subList(split_index,tuples.size()));
-		BTreeLeafPage new_page = new BTreeLeafPage(new BTreePageId(tableid,numPages(),BTreePageId.LEAF),BTreeLeafPage.createEmptyPageData(),keyField);
+//		BTreeLeafPage new_page = new BTreeLeafPage(new BTreePageId(tableid,numPages(),BTreePageId.LEAF),BTreeLeafPage.createEmptyPageData(),keyField);
+		BTreeLeafPage new_page = (BTreeLeafPage) getEmptyPage(tid,dirtypages,BTreePageId.LEAF);
 		for (int i =0;i< right_page.size();i++){
 			new_page.insertTuple(right_page.get(i));
 			page.deleteTuple(right_page.get(i));
 		}
+		dirtypages.put(page.getId(), page);
+		dirtypages.put(new_page.getId(), new_page);
 		BTreePageId mid_right_id = page.getRightSiblingId();
 		page.setRightSiblingId(new_page.getId());
 		new_page.setLeftSiblingId(page.getId());
 		new_page.setRightSiblingId(mid_right_id);
+
+		// 将第二页的最左边key上提至父节点
 		BTreeInternalPage parp = null;
 		BTreeLeafPage res = null;
-		if (tuples.size()%2==0){
-			if (field.compare(Op.LESS_THAN_OR_EQ,right_page.get(0).getField(keyField))){
-				parp = getParentWithEmptySlots(tid,dirtypages,page.getParentId(),field);
-				res = page;
-			}
-			else{
-				parp = getParentWithEmptySlots(tid,dirtypages,page.getParentId(),right_page.get(0).getField(keyField));
-				res = new_page;
-			}
+//		if (tuples.size()%2==0){
+//			if (field.compare(Op.LESS_THAN_OR_EQ,right_page.get(0).getField(keyField))){
+//				parp = getParentWithEmptySlots(tid,dirtypages,page.getParentId(),right_page.get(0).getField(keyField));
+//				res = page;
+//			}
+//			else{
+//				parp = getParentWithEmptySlots(tid,dirtypages,page.getParentId(),right_page.get(0).getField(keyField));
+//				res = new_page;
+//			}
+//		}
+//		else{
+//			if (field.compare(Op.LESS_THAN_OR_EQ,right_page.get(0).getField(keyField))){
+//				parp = getParentWithEmptySlots(tid,dirtypages,page.getParentId(),right_page.get(0).getField(keyField));
+//				res = page;
+//			}
+//			else{
+//				parp = getParentWithEmptySlots(tid,dirtypages,page.getParentId(),field);
+//				res = new_page;
+//			}
+//		}
+		parp = getParentWithEmptySlots(tid,dirtypages,page.getParentId(),right_page.get(0).getField(keyField));
+		if (field.compare(Op.LESS_THAN_OR_EQ,right_page.get(0).getField(keyField))){
+			res = page;
 		}
 		else{
-			if (field.compare(Op.LESS_THAN_OR_EQ,right_page.get(0).getField(keyField))){
-				parp = getParentWithEmptySlots(tid,dirtypages,page.getParentId(),right_page.get(0).getField(keyField));
-				res = page;
-			}
-			else{
-				parp = getParentWithEmptySlots(tid,dirtypages,page.getParentId(),field);
-				res = new_page;
-			}
+			res = new_page;
 		}
-		updateParentPointer(tid,dirtypages, parp.getParentId(), new_page.getId());
-
+		BTreeEntry new_entry = new BTreeEntry(right_page.get(0).getField(keyField), page.getId(), new_page.getId());
+		parp.insertEntry(new_entry);
+		new_page.setParentId(parp.getId());
         return res;
 		
 	}
@@ -343,30 +358,22 @@ public class BTreeFile implements DbFile {
 		}
 		int split_size = entries.size()/2;
 		List<BTreeEntry>right = new ArrayList<>(entries.subList(split_size,entries.size()));
-		BTreeInternalPage new_page = new BTreeInternalPage(new BTreePageId(tableid,numPages(),BTreePageId.INTERNAL),BTreeInternalPage.createEmptyPageData(),keyField);
+//		BTreeInternalPage new_page = new BTreeInternalPage(new BTreePageId(tableid,numPages(),BTreePageId.INTERNAL),BTreeInternalPage.createEmptyPageData(),keyField);
+		BTreeInternalPage new_page = (BTreeInternalPage) getEmptyPage(tid,dirtypages,BTreePageId.INTERNAL); // 暂时不必切割点处的左右child情况
 		for (int i =0;i< right.size();i++){
-			new_page.insertEntry(right.get(i));
-			page.deleteKeyAndRightChild(right.get(i));
+			//new_page.insertEntry(right.get(i));
+			RecordId recordId = new RecordId(new_page.getId(),i);
+			BTreeEntry temp = right.get(i);
+			temp.setRecordId(recordId);
+			//new_page.updateEntry();
+			//page.deleteKeyAndRightChild(right.get(i)); // 每个entry存储只保留右指针，除了第一个entry保留左指针
 		}
+		for (int i =entries.size()/2;i<entries.size();i++){
+
+		}
+
 		BTreeInternalPage para = null;
-		if (entries.size()%2==0){
-			if (field.compare(Op.LESS_THAN_OR_EQ,right.get(0).getKey())){
-				BTreeEntry bTreeEntry = null;
-				if (field.compare(Op.LESS_THAN_OR_EQ,entries.get(entries.size()/2-1).getKey())){
-					bTreeEntry = new BTreeEntry(entries.get(entries.size()/2-1).getKey(),page.getId(), new_page.getId());
-					page.deleteKeyAndLeftChild(entries.get(entries.size()/2-1));
 
-				}
-				else{
-					bTreeEntry = new BTreeEntry(field,page.getId(), new_page.getId());
-				}
-				BTreeInternalPage bTreeInternalPage = (BTreeInternalPage) getPage(tid,dirtypages,page.getParentId(),Permissions.READ_WRITE);
-				bTreeInternalPage.insertEntry(bTreeEntry);
-			}
-			else{
-
-			}
-		}
 		return null;
 	}
 	
