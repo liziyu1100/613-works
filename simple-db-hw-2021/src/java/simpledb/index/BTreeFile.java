@@ -281,47 +281,46 @@ public class BTreeFile implements DbFile {
 			page.deleteTuple(t);
 		}
 
-		BTreePageId mid_right_id = page.getRightSiblingId();
-		page.setRightSiblingId(new_page.getId());
-		new_page.setLeftSiblingId(page.getId());
-		new_page.setRightSiblingId(mid_right_id);
+//		if (page.getId().getPageNumber() ==2 || new_page.getId().getPageNumber()==2){
+//			int a = 1;
+//		}
+
+		if (page.getRightSiblingId()!=null){
+			BTreeLeafPage mid_page = (BTreeLeafPage) getPage(tid,dirtypages,page.getRightSiblingId(),Permissions.READ_WRITE);
+
+			page.setRightSiblingId(new_page.getId());
+			new_page.setLeftSiblingId(page.getId());
+
+			new_page.setRightSiblingId(mid_page.getId());
+			mid_page.setLeftSiblingId(new_page.getId());
+			dirtypages.put(mid_page.getId(), mid_page);
+		}
+		else{
+			page.setRightSiblingId(new_page.getId());
+			new_page.setLeftSiblingId(page.getId());
+		}
 
 		// 将第二页的最左边key上提至父节点
 		BTreeInternalPage parp = null;
 		BTreeLeafPage res = null;
-//		if (tuples.size()%2==0){
-//			if (field.compare(Op.LESS_THAN_OR_EQ,right_page.get(0).getField(keyField))){
-//				parp = getParentWithEmptySlots(tid,dirtypages,page.getParentId(),right_page.get(0).getField(keyField));
-//				res = page;
-//			}
-//			else{
-//				parp = getParentWithEmptySlots(tid,dirtypages,page.getParentId(),right_page.get(0).getField(keyField));
-//				res = new_page;
-//			}
-//		}
-//		else{
-//			if (field.compare(Op.LESS_THAN_OR_EQ,right_page.get(0).getField(keyField))){
-//				parp = getParentWithEmptySlots(tid,dirtypages,page.getParentId(),right_page.get(0).getField(keyField));
-//				res = page;
-//			}
-//			else{
-//				parp = getParentWithEmptySlots(tid,dirtypages,page.getParentId(),field);
-//				res = new_page;
-//			}
-//		}
-		parp = getParentWithEmptySlots(tid,dirtypages,page.getParentId(),right_page.get(0).getField(keyField));
-		if (field.compare(Op.LESS_THAN_OR_EQ,right_page.get(0).getField(keyField))){
+
+		Field border = right_page.get(0).getField(keyField);
+
+		parp = getParentWithEmptySlots(tid,dirtypages,page.getParentId(),border);
+		if (field.compare(Op.LESS_THAN,border)){
 			res = page;
 		}
 		else{
 			res = new_page;
 		}
-		BTreeEntry new_entry = new BTreeEntry(right_page.get(0).getField(keyField), page.getId(), new_page.getId());
+
+		BTreeEntry new_entry = new BTreeEntry(border, page.getId(), new_page.getId());
 		parp.insertEntry(new_entry);
 		new_page.setParentId(parp.getId());
 		page.setParentId(parp.getId());
 		dirtypages.put(page.getId(), page);
 		dirtypages.put(new_page.getId(), new_page);
+		dirtypages.put(parp.getId(),parp);
 		return res;
 		
 	}
@@ -373,51 +372,41 @@ public class BTreeFile implements DbFile {
 			//new_page.insertEntry(right.get(i));
 			// RecordId recordId = new RecordId(new_page.getId(),i);
 			BTreeEntry temp = new BTreeEntry(right.get(i).getKey(),right.get(i).getLeftChild(),right.get(i).getRightChild());
-			new_page.insertEntry(temp);
+			if (i>0){
+				new_page.insertEntry(temp);
+			}
 			//new_page.updateEntry();
 			page.deleteKeyAndRightChild(right.get(i)); // 每个entry存储只保留右指针，除了第一个entry保留左指针
 		}
-		Field border_1 = entries.get(split_size-1).getKey();
+		updateParentPointers(tid,dirtypages,new_page); // 更新被移动的child的父指针
+		// Field border_1 = entries.get(split_size-1).getKey();
 		Field border_2 = entries.get(split_size).getKey();
 		BTreeInternalPage res = null;
-
+//		// 删除旧页中的项
+//		BTreeEntry temp_del = new BTreeEntry(border_2,right.get(0).getLeftChild(),right.get(0).getRightChild());
+//		RecordId recordId = new RecordId(new_page.getId(),0);
+//		temp_del.setRecordId(recordId);
+//		new_page.deleteKeyAndRightChild(temp_del);
+		// 在新页中插入删除的项
+		BTreeInternalPage para = getParentWithEmptySlots(tid,dirtypages,page.getParentId(),border_2);
+		page.setParentId(para.getId());
+		new_page.setParentId(para.getId());
+		BTreeEntry temp2 = new BTreeEntry(border_2, page.getId(), new_page.getId());
+		para.insertEntry(temp2);
+		dirtypages.put(para.getId(), para);
 		if (field.compare(Op.GREATER_THAN_OR_EQ,border_2)){
-			// 删除旧页中的项
-			BTreeEntry temp = new BTreeEntry(border_2,right.get(0).getLeftChild(),right.get(0).getRightChild());
-			RecordId recordId = new RecordId(new_page.getId(),0);
-			temp.setRecordId(recordId);
-			new_page.deleteKeyAndRightChild(temp);
-
 			// 在新页中插入删除的项
 			res = new_page;
-			BTreeInternalPage para = getParentWithEmptySlots(tid,dirtypages,page.getParentId(),border_2);
-			page.setParentId(para.getId());
-			new_page.setParentId(para.getId());
-			BTreeEntry temp2 = new BTreeEntry(border_2, page.getId(), new_page.getId());
-			para.insertEntry(temp2);
-			dirtypages.put(para.getId(), para);
-		}
-		else if (field.compare(Op.GREATER_THAN_OR_EQ,border_1)){
-			res = getParentWithEmptySlots(tid,dirtypages,page.getParentId(),field);
+
 		}
 		else{
-			// 删除旧页中的项
-			BTreeEntry temp = new BTreeEntry(border_1,entries.get(split_size-1).getLeftChild(),entries.get(split_size-1).getRightChild());
-			RecordId recordId = new RecordId(page.getId(),split_size-1);
-			temp.setRecordId(recordId);
-			page.deleteKeyAndRightChild(temp);
-
 			// 在新页中插入删除的项
 			res = page;
-			BTreeInternalPage para = getParentWithEmptySlots(tid,dirtypages,page.getParentId(),border_1);
-			page.setParentId(para.getId());
-			new_page.setParentId(para.getId());
-			BTreeEntry temp2 = new BTreeEntry(border_1, page.getId(), new_page.getId());
-			para.insertEntry(temp2);
-			dirtypages.put(para.getId(), para);
 		}
+
+
 		dirtypages.put(page.getId(), page);
-		dirtypages.put(page.getId(),new_page);
+		dirtypages.put(new_page.getId(),new_page);
 		return res;
 	}
 
