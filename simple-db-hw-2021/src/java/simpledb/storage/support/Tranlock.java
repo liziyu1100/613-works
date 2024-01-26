@@ -20,6 +20,14 @@ public class Tranlock{
         ex_lock = null;
         for_read_q = new ArrayList<>();
     }
+    public boolean islocked(){
+        synchronized (res_lock){
+            if (ex_lock == null && sh_locks.size() == 0)
+                return false;
+            else
+                return true;
+        }
+    }
     public void lock(TransactionId tid, Permissions perm) throws InterruptedException, TransactionAbortedException {
         if (perm == Permissions.READ_ONLY){
             boolean sign;

@@ -3,6 +3,7 @@ package simpledb.storage;
 import simpledb.common.Database;
 import simpledb.common.Permissions;
 import simpledb.common.DbException;
+import simpledb.index.BTreePageId;
 import simpledb.storage.support.GraphUtil;
 import simpledb.storage.support.Tranlock;
 import simpledb.transaction.TransactionAbortedException;
@@ -44,6 +45,7 @@ public class BufferPool {
     private Map<TransactionId,List<PageId>>tran_rec_page;
     private Object rec_lock = new Object(); // tran_rec 和 tran_rec_page共享资源锁
     private Object[] op_lock ;
+    private int numpages ;
     /**
      * Creates a BufferPool that caches up to numPages pages.
      *
@@ -54,6 +56,7 @@ public class BufferPool {
         this.pages = new Page[numPages];
         this.locks = new Tranlock[numPages];
         this.rest_num = numPages;
+        this.numpages = numPages;
         this.page_q = new LinkedHashMap<>();
         this.tran_rec = new HashMap<>();
         this.tran_rec_page = new HashMap<>();
@@ -93,7 +96,7 @@ public class BufferPool {
     public  Page getPage(TransactionId tid, PageId pid, Permissions perm)
         throws TransactionAbortedException, DbException {
         // some code goes here
-        int visit_rest = DEFAULT_PAGES - rest_num;
+        int visit_rest = numpages - rest_num;
         for (int i = 0;i<pages.length;i++){
             if (pages[i]!=null){
                 visit_rest = visit_rest - 1;
@@ -134,6 +137,7 @@ public class BufferPool {
             synchronized (add_lock){
                 int i = this.addPage(tid,nhp, true);
                 if (i == -1){  // already added by other tran
+                    //System.out.println("tid : "+tid + " pid:"+pid);
                     return getPage(tid, pid, perm);
                 }
 //                else{
@@ -189,7 +193,7 @@ public class BufferPool {
     public  void unsafeReleasePage(TransactionId tid, PageId pid) {
         // some code goes here
         // not necessary for lab1|lab2
-        int visit_rest = DEFAULT_PAGES - rest_num;
+        int visit_rest = numpages - rest_num;
         synchronized (rec_lock){
             List<Tranlock>temp = tran_rec.get(tid);
             List<PageId>temp2 = tran_rec_page.get(tid);
@@ -343,9 +347,9 @@ public class BufferPool {
         int tableid = t.getRecordId().getPageId().getTableId();
         DbFile hdf = Database.getCatalog().getDatabaseFile(tableid);
         List<Page> dtp =  hdf.deleteTuple(tid,t);
-//        for (int i =0;i<dtp.size();i++){
-//            this.addPage(tid,dtp.get(i));
-//        }
+        for (int i =0;i<dtp.size();i++){
+            dtp.get(i).markDirty(true,tid);
+        }
     }
 
     /**
@@ -377,6 +381,20 @@ public class BufferPool {
     public synchronized void discardPage(PageId pid) {
         // some code goes here
         // not necessary for lab1
+        int visit_rest = numpages - rest_num;
+        for (int i = 0;i<pages.length;i++){
+            if (pages[i]!=null){
+                if (pages[i].getId().equals(pid)){
+                    if (locks[i].islocked()) System.out.println("已上锁，无法丢弃");
+                    else{
+                        pages[i] = null;
+                        locks[i] = null;
+                    }
+                    return;
+                }
+            }
+            if (visit_rest == 0)break;
+        }
     }
 
     /**
@@ -386,7 +404,7 @@ public class BufferPool {
     private synchronized  void flushPage(PageId pid) throws IOException {
         // some code goes here
         // not necessary for lab1
-        int visit_rest = DEFAULT_PAGES - rest_num;
+        int visit_rest = numpages - rest_num;
         for (int i = 0;i<pages.length;i++){
             if (pages[i]!=null){
                 if (pages[i].getId().equals(pid) && pages[i].isDirty()!=null){

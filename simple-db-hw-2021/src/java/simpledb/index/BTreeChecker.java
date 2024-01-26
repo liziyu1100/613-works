@@ -42,6 +42,9 @@ public class BTreeChecker {
 
         static SubtreeSummary checkAndMerge(SubtreeSummary accleft, SubtreeSummary right) {
             assert(accleft.depth == right.depth);
+            if (!accleft.ptrRight.equals(right.leftmostId)){
+                int a = 1;
+            }
             assert(accleft.ptrRight.equals(right.leftmostId));
             assert(accleft.rightmostId.equals(right.ptrLeft));
 
