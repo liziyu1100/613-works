@@ -456,12 +456,28 @@ public class LogFile {
     */
     public void rollback(TransactionId tid)
         throws NoSuchElementException, IOException {
+        print();
         synchronized (Database.getBufferPool()) {
             synchronized(this) {
                 preAppend();
                 // some code goes here
+                Long start = tidToFirstLogRecord.get(tid.getId());
+                raf.seek(start);
+                int log_type = raf.readInt();
+                Long log_tid = raf.readLong();
+                Page before=null;
+                if (log_type==UPDATE_RECORD){
+                    before = readPageData(raf);
+                    try{
+                        Database.getBufferPool().addPage(tid,before,false);
+                    }catch (Exception e){
+                        e.printStackTrace();
+                    }
+                }
+
             }
         }
+        print();
     }
 
     /** Shutdown the logging system, writing out whatever state
